@@ -1,1 +1,1 @@
-# Federated-Learning
+# Federated-LearningWe implement the paper [Communication-Efficient Learning of Deep Networks from Decentralized Data](https://arxiv.org/abs/1602.05629). Its blog is [here](https://research.googleblog.com/2017/04/federated-learning-collaborative.html).
