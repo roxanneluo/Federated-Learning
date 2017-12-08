@@ -2,6 +2,7 @@ import numpy as np
 import keras
 import random
 import time
+import json
 import pickle
 from keras.models import model_from_json
 from socketIO_client import SocketIO, LoggingNamespace
@@ -84,8 +85,10 @@ class FederatedClient(object):
         def on_reconnect():
             print('reconnect')
 
-        def on_init(*model_config):
+        def on_init(*args):
+            model_config = args[0]
             print('on init', model_config)
+            print('preparing local data based on server model_config')
             # ([(Xi, Yi)], [], []) = train, test, valid
             fake_data = self.datasource.fake_non_iid_data(
                 min_train=model_config['min_train_size'],
@@ -93,8 +96,13 @@ class FederatedClient(object):
                 data_split=model_config['data_split']
             )
             self.local_model = LocalModel(model_config, fake_data)
+            # ready to be dispatched for training
+            self.sio.emit('client_ready', {
+                    'train_size': self.local_model.x_train.shape[0],
+                })
 
-        def on_request_update(*req):
+        def on_request_update(*args):
+            req = args[0]
             # req:
             #     'model_id'
             #     'round_number'
@@ -102,7 +110,7 @@ class FederatedClient(object):
             #     'weights_format'
             #     'run_validation'
             if req['weights_format'] == 'pickle':
-                weights = pickle.loads(req['current_weights'])
+                weights = pickle.loads(byte(req['current_weights']))
 
             self.local_model.set_weights(weights)
             my_weights, train_loss, train_accuracy = self.local_model.train_one_round()
@@ -128,8 +136,8 @@ class FederatedClient(object):
         self.sio.on('init', on_init)
         self.sio.on('request_update', on_request_update)
 
-        self.sio.emit('wake_up')
-        # ???
+        print("sent wakeup")
+        self.sio.emit('client_wake_up')
         self.sio.wait()
 
 

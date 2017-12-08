@@ -1,8 +1,7 @@
 import numpy as np
 import keras
-
+import random
 from keras.datasets import mnist
-
 
 class DataSource(object):
     def __init__(self):
@@ -59,15 +58,17 @@ class Mnist(DataSource):
     # generate t, t, v dataset given distribution and split
     def fake_non_iid_data(self, min_train=100, max_train=1000, data_split=(.6,.3,.1)):
         my_class_distr = np.array([np.random.random() for _ in range(self.classes.shape[0])])
-        my_class_distr /= np.sum(self.my_class_distr)
+        my_class_distr /= np.sum(my_class_distr)
         
         train_size = random.randint(min_train, max_train)
-        test_size = train_size / data_split[0] * data_split[1]
-        valid_size = train_size / data_split[0] * data_split[1]
+        test_size = int(train_size / data_split[0] * data_split[1])
+        valid_size = int(train_size / data_split[0] * data_split[1])
 
-        train_set = [self.sample_single_non_iid(my_class_distr) for _ in train_size]
-        test_set = [self.sample_single_non_iid(my_class_distr) for _ in test_size]
-        valid_set = [self.sample_single_non_iid(my_class_distr) for _ in valid_size]
+        train_set = [self.sample_single_non_iid(my_class_distr) for _ in range(train_size)]
+        test_set = [self.sample_single_non_iid(my_class_distr) for _ in range(test_size)]
+        valid_set = [self.sample_single_non_iid(my_class_distr) for _ in range(valid_size)]
+        print("done generating fake data")
+
         return (train_set, test_set, valid_set)
 
 

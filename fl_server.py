@@ -7,6 +7,7 @@ from keras.layers import Conv2D, MaxPooling2D
 from keras import backend as K
 
 import msgpack
+import random
 import msgpack_numpy
 # https://github.com/lebedov/msgpack-numpy
 
@@ -49,7 +50,7 @@ class GlobalModel(object):
 
 class GlobalModel_MNIST_CNN(GlobalModel):
     def __init__(self):
-        super(GlobalModel, self).__init__()
+        super(GlobalModel_MNIST_CNN, self).__init__()
 
     def build_model(self):
         # ~5MB worth of parameters
@@ -77,7 +78,7 @@ class GlobalModel_MNIST_CNN(GlobalModel):
 
 class FLServer(object):
     
-    MIN_NUM_WORKERS = 2
+    MIN_NUM_WORKERS = 1
     MAX_NUM_ROUNDS = 10
     NUM_CLIENTS_CONTACTED_PER_ROUND = 1
     ROUNDS_BETWEEN_VALIDATIONS = 10
@@ -85,14 +86,14 @@ class FLServer(object):
     def __init__(self, global_model, host, port):
         self.global_model = global_model()
 
-        self.connected_client_sids = set()
+        self.ready_client_sids = set()
 
         self.app = Flask(__name__)
         self.socketio = SocketIO(self.app)
         self.host = host
         self.port = port
 
-        self.model_id = uuid.uuid4()
+        self.model_id = str(uuid.uuid4())
 
         #####
         # training states
@@ -106,25 +107,20 @@ class FLServer(object):
         @self.socketio.on('connect')
         def handle_connect():
             print(request.sid, "connected")
-            self.connected_client_sids.add(request.sid)
-            if len(self.connected_client_sids) >= FLServer.MIN_NUM_WORKERS and self.current_round == -1:
-                self.train_next_round()
 
         @self.socketio.on('reconnect')
         def handle_reconnect():
             print(request.sid, "reconnected")
-            self.connected_client_sids.add(request.sid)
-            if len(self.connected_client_sids) >= FLServer.MIN_NUM_WORKERS and self.current_round == -1:
-                self.train_next_round()
 
         @self.socketio.on('disconnect')
         def handle_reconnect():
             print(request.sid, "disconnected")
-            self.connected_client_sids.remove(request.sid)
+            if request.sid in self.ready_client_sids:
+                self.ready_client_sids.remove(request.sid)
 
-        @self.socketio.on('wake_up')
+        @self.socketio.on('client_wake_up')
         def handle_wake_up():
-            print("handle wake_up: ", request.sid)
+            print("client wake_up: ", request.sid)
             emit('init', {
                     'model_json': self.global_model.model.to_json(),
                     'model_id': self.model_id,
@@ -133,6 +129,13 @@ class FLServer(object):
                     'epoch_per_round': 1,
                     'batch_size': 10
                 })
+
+        @self.socketio.on('client_ready')
+        def handle_client_ready(data):
+            print("client ready for training", request.sid, data)
+            self.ready_client_sids.add(request.sid)
+            if len(self.ready_client_sids) >= FLServer.MIN_NUM_WORKERS and self.current_round == -1:
+                self.train_next_round()
 
         @self.socketio.on('client_update')
         def handle_client_update(data):
@@ -195,24 +198,25 @@ class FLServer(object):
         self.current_round_client_updates = []
 
         print("### Round ", self.current_round, "###")
-        client_sids_selected = random.sample(list(self.connected_client_sids), FLServer.NUM_CLIENTS_CONTACTED_PER_ROUND)
+        client_sids_selected = random.sample(list(self.ready_client_sids), FLServer.NUM_CLIENTS_CONTACTED_PER_ROUND)
+        print("request updates from", client_sids_selected)
 
         # by default each client cnn is in its own "room"
         for rid in client_sids_selected:
             emit('request_update', {
                     'model_id': self.model_id,
                     'round_number': self.current_round,
-                    'current_weights': str(pickle.dumps(global_model.current_weights)),
+                    'current_weights': str(pickle.dumps(self.global_model.current_weights)),
                     # TODO: compare pickle vs msgpack vs json for serialization; tradeoff: computation vs network IO
-                    # 'current_weights': str(msgpack.packb(global_model.current_weights, default=msgpack_numpy.encode)),
+                    # 'current_weights': str(msgpack.packb(self.global_model.current_weights, default=msgpack_numpy.encode)),
                     'weights_format': 'pickle',
-                    'run_validation': current_round % FLServer.ROUNDS_BETWEEN_VALIDATIONS == 0,
+                    'run_validation': self.current_round % FLServer.ROUNDS_BETWEEN_VALIDATIONS == 0,
                 }, room_id=rid)
 
     def stop_training(self):
         emit('stop', {
                 'model_id': self.model_id,
-                'current_weights': str(pickle.dumps(global_model.current_weights)),
+                'current_weights': str(pickle.dumps(self.global_model.current_weights)),
                 'weights_format': 'pickle'
             })
 
