@@ -1,10 +1,11 @@
-import numpy as np
-import keras
 import random
-import time
+import sys
 import threading
 from fl_client import FederatedClient
 from fl_server import obj_to_pickle_string, pickle_string_to_obj
+from ea_server import print_request
+import datasource
+
 
 class ElasticAveragingClient(FederatedClient):
     def __init__(self, server_host, server_port, datasource):
@@ -21,6 +22,8 @@ class ElasticAveragingClient(FederatedClient):
 
         def on_server_send_weights(*args):
             req = args[0]
+            print_request('on_server_send_weights', req)
+
             global_w = pickle_string_to_obj(req['weights'])
             with self.model_lock:
                 local_w = self.local_model.get_weights()
@@ -29,13 +32,13 @@ class ElasticAveragingClient(FederatedClient):
 
             self.send_weights(local_w)
 
-        ## register handle 
+        ## register handle
         self.sio.on('server_send_weights', on_server_send_weights)
 
 
     def on_init(self, *args):
-        print('EA on_init')
-        FederatedClient.on_init(self, *args)
+        print_request('EA on_init', args[0])
+        super(ElasticAveragingClient, self).on_init(*args)
         model_config = args[0]
         self.p = model_config["p"]
         self.e = model_config["e"]
@@ -45,6 +48,7 @@ class ElasticAveragingClient(FederatedClient):
                 if random.random() < self.p:
                     self.request_weights()
                 with self.model_lock:
+                    print('train')
                     self.local_model.train_one_round()
 
         threading.Thread(target = train).start()
@@ -60,4 +64,5 @@ class ElasticAveragingClient(FederatedClient):
 
 
 if __name__ == "__main__":
-    c = ElasticAveragingClient("127.0.0.1", 5000, datasource.Mnist)
+    port = sys.argv[1]
+    c = ElasticAveragingClient("127.0.0.1", int(port), datasource.Mnist)
