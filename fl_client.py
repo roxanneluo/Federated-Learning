@@ -4,8 +4,10 @@ import random
 import time
 import json
 import pickle
+import codecs
 from keras.models import model_from_json
 from socketIO_client import SocketIO, LoggingNamespace
+from fl_server import obj_to_pickle_string, pickle_string_to_obj
 
 import datasource
 import threading
@@ -109,13 +111,21 @@ class FederatedClient(object):
             #     'current_weights'
             #     'weights_format'
             #     'run_validation'
+            print("update requested")
+            for x in req:
+                if x != "current_weights":
+                    print("\t", x)
+
             if req['weights_format'] == 'pickle':
-                weights = pickle.loads(byte(req['current_weights']))
+                print("!!!!!")
+                weights = pickle_string_to_obj(req['current_weights'])
+                for w in weights:
+                    print(w)
 
             self.local_model.set_weights(weights)
             my_weights, train_loss, train_accuracy = self.local_model.train_one_round()
             resp = {
-                'weights': my_weights,
+                'weights': obj_to_pickle_string(my_weights),
                 'train_size': self.local_model.x_train.shape[0],
                 'valid_size': self.local_model.x_valid.shape[0],
                 'train_loss': train_loss,

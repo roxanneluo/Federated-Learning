@@ -8,6 +8,7 @@ from keras import backend as K
 
 import msgpack
 import random
+import codecs
 import msgpack_numpy
 # https://github.com/lebedov/msgpack-numpy
 
@@ -16,6 +17,17 @@ from flask_socketio import SocketIO
 from flask_socketio import *
 # https://flask-socketio.readthedocs.io/en/latest/
        
+
+
+def obj_to_pickle_string(obj):
+    return pickle.dumps(obj)
+    # codecs.encode(pickle.dumps(obj), "base64").decode()
+    # TODO: compare pickle vs msgpack vs json for serialization; tradeoff: computation vs network IO
+
+def pickle_string_to_obj(s):
+    return pickle.loads(s)
+    # pickle.loads(codecs.decode(s, "base64"))
+
 
 class GlobalModel(object):
     """docstring for GlobalModel"""
@@ -155,7 +167,7 @@ class FLServer(object):
             # discard outdated update
             if data['round_number'] == self.current_round:
                 self.current_round_client_updates += [data]
-                self.current_round_client_updates[-1]['weights'] = pickle.loads(data['weights'])
+                self.current_round_client_updates[-1]['weights'] = pickle_string_to_obj(data['weights'])
                 
                 # tolerate 30% unresponsive clients
                 if self.current_round_update_received > FLServer.NUM_CLIENTS_CONTACTED_PER_ROUND * .7:
@@ -189,7 +201,6 @@ class FLServer(object):
                         self.global_model.prev_train_loss = aggr_train_loss
                         self.train_next_round()
 
-
     
     # Note: we assume that during training the #workers will be >= MIN_NUM_WORKERS
     def train_next_round(self):
@@ -206,22 +217,22 @@ class FLServer(object):
             emit('request_update', {
                     'model_id': self.model_id,
                     'round_number': self.current_round,
-                    'current_weights': str(pickle.dumps(self.global_model.current_weights)),
-                    # TODO: compare pickle vs msgpack vs json for serialization; tradeoff: computation vs network IO
-                    # 'current_weights': str(msgpack.packb(self.global_model.current_weights, default=msgpack_numpy.encode)),
+                    'current_weights': obj_to_pickle_string(self.global_model.current_weights),
+
                     'weights_format': 'pickle',
                     'run_validation': self.current_round % FLServer.ROUNDS_BETWEEN_VALIDATIONS == 0,
-                }, room_id=rid)
+                }, room=rid)
 
     def stop_training(self):
         emit('stop', {
                 'model_id': self.model_id,
-                'current_weights': str(pickle.dumps(self.global_model.current_weights)),
+                'current_weights': obj_to_pickle_string(self.global_model.current_weights),
                 'weights_format': 'pickle'
             })
 
     def start(self):
         self.socketio.run(self.app, host=self.host, port=self.port)
+
 
 
 if __name__ == '__main__':
