@@ -115,7 +115,7 @@ class FederatedClient(object):
             })
 
 
-    def register_handles():
+    def register_handles(self):
         ########## Socket IO messaging ##########
         def on_connect():
             print('connect')

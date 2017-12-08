@@ -117,6 +117,16 @@ class FLServer(object):
         self.register_handles()
 
 
+    def init_client_message(self):
+        return {
+                    'model_json': self.global_model.model.to_json(),
+                    'model_id': self.model_id,
+                    'min_train_size': 100,
+                    'data_split': (0.6, 0.3, 0.1), # train, test, valid
+                    'epoch_per_round': 1,
+                    'batch_size': 10
+                }
+    
     def register_handles(self):
         # single-threaded async, no need to lock
 
@@ -137,14 +147,7 @@ class FLServer(object):
         @self.socketio.on('client_wake_up')
         def handle_wake_up():
             print("client wake_up: ", request.sid)
-            emit('init', {
-                    'model_json': self.global_model.model.to_json(),
-                    'model_id': self.model_id,
-                    'min_train_size': 100,
-                    'data_split': (0.6, 0.3, 0.1), # train, test, valid
-                    'epoch_per_round': 1,
-                    'batch_size': 10
-                })
+            emit('init', self.init_client_message())
 
         @self.socketio.on('client_ready')
         def handle_client_ready(data):
