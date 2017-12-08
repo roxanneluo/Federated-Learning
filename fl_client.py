@@ -2,6 +2,7 @@ import numpy as np
 import keras
 import random
 import time
+import pickle
 from keras.models import model_from_json
 from socketIO_client import SocketIO, LoggingNamespace
 
@@ -18,6 +19,10 @@ class LocalModel(object):
             # 'epoch_per_round'
             # 'batch_size'
         self.model_config = model_config
+
+        self.model = model_from_json(model_config['model_json'])
+        # the weights will be initialized on first pull from server
+
         train_data, test_data, valid_data = data_collected
         self.x_train = np.array([tup[0] for tup in train_data])
         self.y_train = np.array([tup[1] for tup in train_data])
@@ -26,17 +31,24 @@ class LocalModel(object):
         self.x_valid = np.array([tup[0] for tup in valid_data])
         self.y_valid = np.array([tup[1] for tup in valid_data])
 
+    def get_weights(self):
+        return self.model.get_weights()
+
     def set_weights(self, new_weights):
         self.model.set_weights(new_weights)
 
-    # return dataset size, final weights
+    # return final weights, train loss, train accuracy
     def train_one_round(self):
         self.model.fit(self.x_train, self.y_train,
                   epochs=self.model_config['epoch_per_round'],
                   batch_size=self.model_config['batch_size'],
                   verbose=1,
                   validation_data=(self.x_test, self.y_test))
-        return self.x_train.shape[0], self.model.get_weights()
+
+        score = self.model.evaluate(self.x_train, self.train, verbose=0)
+        print('Train loss:', score[0])
+        print('Train accuracy:', score[1])
+        return self.model.get_weights(), score[0], score[1]
 
     def validate(self):
         score = self.model.evaluate(self.x_valid, self.y_valid, verbose=0)
@@ -82,7 +94,6 @@ class FederatedClient(object):
             )
             self.local_model = LocalModel(model_config, fake_data)
 
-
         def on_request_update(*req):
             # req:
             #     'model_id'
@@ -90,15 +101,24 @@ class FederatedClient(object):
             #     'current_weights'
             #     'weights_format'
             #     'run_validation'
-            weights = # recover
-            self.local_model.set_weights(weights)
-            my_weights = self.local_model.train_one_round()
-            if req['run_validation']:
-                loss, accuracy = self.local_model.validate()
-            self.sio.emit('client_update', {
-                    # TODO
-                })
+            if req['weights_format'] == 'pickle':
+                weights = pickle.loads(req['current_weights'])
 
+            self.local_model.set_weights(weights)
+            my_weights, train_loss, train_accuracy = self.local_model.train_one_round()
+            resp = {
+                'weights': my_weights,
+                'train_size': self.local_model.x_train.shape[0],
+                'valid_size': self.local_model.x_valid.shape[0],
+                'train_loss': train_loss,
+                'train_accuracy': train_accuracy,
+            }
+            if req['run_validation']:
+                valid_loss, valid_accuracy = self.local_model.validate()
+                resp['valid_loss'] = valid_loss
+                resp['valid_accuracy'] = valid_accuracy
+
+            self.sio.emit('client_update', resp)
 
 
         self.sio = SocketIO(server_host, server_port, LoggingNamespace)
@@ -109,7 +129,8 @@ class FederatedClient(object):
         self.sio.on('request_update', on_request_update)
 
         self.sio.emit('wake_up')
-        self.sio.wait(seconds=1)
+        # ???
+        self.sio.wait()
 
 
 
@@ -136,9 +157,7 @@ class FederatedClient(object):
             time.sleep(random.randint(low, high))
 
 
-
-
-# possible: use a client-level pubsub system for gradient update, no parameter server?
+# possible: use a low-latency pubsub system for gradient update, and do "gossip"
 # e.g. Google cloud pubsub, Amazon SNS
 # https://developers.google.com/nearby/connections/overview
 # https://pypi.python.org/pypi/pyp2p
@@ -146,7 +165,6 @@ class FederatedClient(object):
 # class PeerToPeerClient(FederatedClient):
 #     def __init__(self):
 #         super(PushBasedClient, self).__init__()    
-
 
 
 if __name__ == "__main__":
