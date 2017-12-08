@@ -32,11 +32,11 @@ class LocalModel(object):
 
         train_data, test_data, valid_data = data_collected
         self.x_train = np.array([tup[0] for tup in train_data])
-        self.y_train = np.array([tup[1] for tup in train_data])
+        self.y_train = np.squeeze(np.array([tup[1] for tup in train_data]))
         self.x_test = np.array([tup[0] for tup in test_data])
-        self.y_test = np.array([tup[1] for tup in test_data])
+        self.y_test = np.squeeze(np.array([tup[1] for tup in test_data]))
         self.x_valid = np.array([tup[0] for tup in valid_data])
-        self.y_valid = np.array([tup[1] for tup in valid_data])
+        self.y_valid = np.squeeze(np.array([tup[1] for tup in valid_data]))
 
         print(self.x_train.shape)
 
@@ -55,6 +55,7 @@ class LocalModel(object):
               optimizer=keras.optimizers.Adadelta(),
               metrics=['accuracy'])
 
+        print('train shape', self.x_train.shape, self.y_train.shape)
         self.model.fit(self.x_train, self.y_train,
                   epochs=self.model_config['epoch_per_round'],
                   batch_size=self.model_config['batch_size'],
@@ -96,7 +97,7 @@ class FederatedClient(object):
         self.sio.emit('client_wake_up')
         self.sio.wait()
 
-    
+
     ########## Socket Event Handler ##########
     def on_init(self, *args):
         model_config = args[0]
@@ -188,7 +189,7 @@ class FederatedClient(object):
 
         # threading.Thread(target=simulate_data_gen, args=(self,)).start()
 
-    
+
     def intermittently_sleep(self, p=.1, low=10, high=100):
         if (random.random() < p):
             time.sleep(random.randint(low, high))
@@ -201,7 +202,7 @@ class FederatedClient(object):
 
 # class PeerToPeerClient(FederatedClient):
 #     def __init__(self):
-#         super(PushBasedClient, self).__init__()    
+#         super(PushBasedClient, self).__init__()
 
 
 if __name__ == "__main__":
