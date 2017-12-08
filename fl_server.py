@@ -113,7 +113,10 @@ class FLServer(object):
         self.current_round_client_updates = []
         #####
 
+        self.register_handles()
 
+
+    def register_handles(self):
         # single-threaded async, no need to lock
 
         @self.socketio.on('connect')
