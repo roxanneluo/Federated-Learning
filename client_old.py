@@ -10,6 +10,7 @@ from keras.models import Sequential
 from keras.layers import Dense, Dropout, Flatten
 from keras.layers import Conv2D, MaxPooling2D
 from keras import backend as K
+import tensorflow as tf
 
 class Client:
     # train/test_indices sample indices of train and test samples in this client
@@ -96,5 +97,16 @@ class MnistClient(Client):
 
 if __name__ == "__main__":
     client = MnistClient(range(1000), range(1000))
-    weights = client.train(client.model.get_weights(), 1, 128)
-    client.evaluate()
+    #weights = client.train(client.model.get_weights(), 1, 128)
+    #client.evaluate()
+    #client.model._make_predict_function()
+    graph = tf.get_default_graph()
+    print(graph)
+    def train():
+        with graph.as_default():
+            client.train(client.model.get_weights(), 1, 128)
+    import threading
+    t = threading.Thread(target=train)
+    t.start()
+    t.join()
+

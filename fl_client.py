@@ -1,5 +1,6 @@
 import numpy as np
 import keras
+import tensorflow as tf
 import random
 import time
 import json
@@ -29,6 +30,7 @@ class LocalModel(object):
         self.model.compile(loss=keras.losses.categorical_crossentropy,
               optimizer=keras.optimizers.Adadelta(),
               metrics=['accuracy'])
+        self.graph = tf.get_default_graph()
 
         train_data, test_data, valid_data = data_collected
         self.x_train = np.array([tup[0] for tup in train_data])
@@ -51,21 +53,24 @@ class LocalModel(object):
 
     # return final weights, train loss, train accuracy
     def train_one_round(self):
+        """
         self.model.compile(loss=keras.losses.categorical_crossentropy,
               optimizer=keras.optimizers.Adadelta(),
               metrics=['accuracy'])
+              """
 
-        print('train shape', self.x_train.shape, self.y_train.shape)
-        self.model.fit(self.x_train, self.y_train,
-                  epochs=self.model_config['epoch_per_round'],
-                  batch_size=self.model_config['batch_size'],
-                  verbose=1,
-                  validation_data=(self.x_valid, self.y_valid))
+        with self.graph.as_default():
+            print('train shape', self.x_train.shape, self.y_train.shape)
+            self.model.fit(self.x_train, self.y_train,
+                      epochs=self.model_config['epoch_per_round'],
+                      batch_size=self.model_config['batch_size'],
+                      verbose=1,
+                      validation_data=(self.x_valid, self.y_valid))
 
-        score = self.model.evaluate(self.x_train, self.y_train, verbose=0)
-        print('Train loss:', score[0])
-        print('Train accuracy:', score[1])
-        return self.model.get_weights(), score[0], score[1]
+            score = self.model.evaluate(self.x_train, self.y_train, verbose=0)
+            print('Train loss:', score[0])
+            print('Train accuracy:', score[1])
+            return self.model.get_weights(), score[0], score[1]
 
     def validate(self):
         score = self.model.evaluate(self.x_valid, self.y_valid, verbose=0)
