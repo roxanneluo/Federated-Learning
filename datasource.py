@@ -2,6 +2,7 @@ import numpy as np
 import keras
 import random
 from keras.datasets import mnist
+from keras import backend as K
 
 class DataSource(object):
     def __init__(self):
@@ -26,6 +27,11 @@ class Mnist(DataSource):
         
     # assuming client server already agreed on data format
     def post_process(self, xi, yi):
+        if K.image_data_format() == 'channels_first':
+            xi = xi.reshape(1, xi.shape[0], xi.shape[1])
+        else:
+            xi = xi.reshape(xi.shape[0], xi.shape[1], 1)
+
         y_vec = keras.utils.to_categorical(yi, self.classes.shape[0])
         return xi / 255., y_vec
 

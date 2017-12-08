@@ -26,6 +26,10 @@ class LocalModel(object):
         self.model = model_from_json(model_config['model_json'])
         # the weights will be initialized on first pull from server
 
+        self.model.compile(loss=keras.losses.categorical_crossentropy,
+              optimizer=keras.optimizers.Adadelta(),
+              metrics=['accuracy'])
+
         train_data, test_data, valid_data = data_collected
         self.x_train = np.array([tup[0] for tup in train_data])
         self.y_train = np.array([tup[1] for tup in train_data])
@@ -33,6 +37,11 @@ class LocalModel(object):
         self.y_test = np.array([tup[1] for tup in test_data])
         self.x_valid = np.array([tup[0] for tup in valid_data])
         self.y_valid = np.array([tup[1] for tup in valid_data])
+
+        print(self.x_train.shape)
+
+        input("Press Enter to continue...")
+
 
     def get_weights(self):
         return self.model.get_weights()
@@ -42,13 +51,17 @@ class LocalModel(object):
 
     # return final weights, train loss, train accuracy
     def train_one_round(self):
+        self.model.compile(loss=keras.losses.categorical_crossentropy,
+              optimizer=keras.optimizers.Adadelta(),
+              metrics=['accuracy'])
+
         self.model.fit(self.x_train, self.y_train,
                   epochs=self.model_config['epoch_per_round'],
                   batch_size=self.model_config['batch_size'],
                   verbose=1,
-                  validation_data=(self.x_test, self.y_test))
+                  validation_data=(self.x_valid, self.y_valid))
 
-        score = self.model.evaluate(self.x_train, self.train, verbose=0)
+        score = self.model.evaluate(self.x_train, self.y_train, verbose=0)
         print('Train loss:', score[0])
         print('Train accuracy:', score[1])
         return self.model.get_weights(), score[0], score[1]
@@ -71,7 +84,7 @@ class LocalModel(object):
 # it contributes to the global model by sending its local gradients.
 
 class FederatedClient(object):
-    MAX_DATASET_SIZE_KEPT = 1000
+    MAX_DATASET_SIZE_KEPT = 100
 
     def __init__(self, server_host, server_port, datasource):
         self.local_model = None
@@ -117,14 +130,14 @@ class FederatedClient(object):
                     print("\t", x)
 
             if req['weights_format'] == 'pickle':
-                print("!!!!!")
                 weights = pickle_string_to_obj(req['current_weights'])
                 for w in weights:
-                    print(w)
+                    print(w.shape)
 
             self.local_model.set_weights(weights)
             my_weights, train_loss, train_accuracy = self.local_model.train_one_round()
             resp = {
+                'round_number': req['round_number'],
                 'weights': obj_to_pickle_string(my_weights),
                 'train_size': self.local_model.x_train.shape[0],
                 'valid_size': self.local_model.x_valid.shape[0],

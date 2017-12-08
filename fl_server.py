@@ -9,6 +9,7 @@ from keras import backend as K
 import msgpack
 import random
 import codecs
+import numpy as np
 import msgpack_numpy
 # https://github.com/lebedov/msgpack-numpy
 
@@ -19,14 +20,14 @@ from flask_socketio import *
        
 
 
-def obj_to_pickle_string(obj):
-    return pickle.dumps(obj)
-    # codecs.encode(pickle.dumps(obj), "base64").decode()
+def obj_to_pickle_string(x):
+    return codecs.encode(pickle.dumps(x), "base64").decode()
+    # return msgpack.packb(x, default=msgpack_numpy.encode)
     # TODO: compare pickle vs msgpack vs json for serialization; tradeoff: computation vs network IO
 
 def pickle_string_to_obj(s):
-    return pickle.loads(s)
-    # pickle.loads(codecs.decode(s, "base64"))
+    return pickle.loads(codecs.decode(s.encode(), "base64"))
+    # return msgpack.unpackb(s, object_hook=msgpack_numpy.decode)
 
 
 class GlobalModel(object):
@@ -170,7 +171,7 @@ class FLServer(object):
                 self.current_round_client_updates[-1]['weights'] = pickle_string_to_obj(data['weights'])
                 
                 # tolerate 30% unresponsive clients
-                if self.current_round_update_received > FLServer.NUM_CLIENTS_CONTACTED_PER_ROUND * .7:
+                if len(self.current_round_client_updates) > FLServer.NUM_CLIENTS_CONTACTED_PER_ROUND * .7:
                     self.global_model.update_weights(
                         [x['weights'] for x in self.current_round_client_updates],
                         [x['train_size'] for x in self.current_round_client_updates],
@@ -196,7 +197,7 @@ class FLServer(object):
                             (self.global_model.prev_train_loss - aggr_train_loss) / self.global_model.prev_train_loss < .01:
                         # converges
                         print("converges!")
-                        self.stop()
+                        self.stop_training()
                     else:
                         self.global_model.prev_train_loss = aggr_train_loss
                         self.train_next_round()
