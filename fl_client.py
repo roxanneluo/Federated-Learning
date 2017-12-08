@@ -77,6 +77,32 @@ class FederatedClient(object):
         self.local_model = None
         self.datasource = datasource()
 
+        self.sio = SocketIO(server_host, server_port, LoggingNamespace)
+        self.register_handles()
+        print("sent wakeup")
+        self.sio.emit('client_wake_up')
+        self.sio.wait()
+
+    
+    ########## Socket Event Handler ##########
+    def on_init(self, *args):
+        model_config = args[0]
+        print('on init', model_config)
+        print('preparing local data based on server model_config')
+        # ([(Xi, Yi)], [], []) = train, test, valid
+        fake_data = self.datasource.fake_non_iid_data(
+            min_train=model_config['min_train_size'],
+            max_train=FederatedClient.MAX_DATASET_SIZE_KEPT,
+            data_split=model_config['data_split']
+        )
+        self.local_model = LocalModel(model_config, fake_data)
+        # ready to be dispatched for training
+        self.sio.emit('client_ready', {
+                'train_size': self.local_model.x_train.shape[0],
+            })
+
+
+    def register_handles():
         ########## Socket IO messaging ##########
         def on_connect():
             print('connect')
@@ -86,22 +112,6 @@ class FederatedClient(object):
 
         def on_reconnect():
             print('reconnect')
-
-        def on_init(*args):
-            model_config = args[0]
-            print('on init', model_config)
-            print('preparing local data based on server model_config')
-            # ([(Xi, Yi)], [], []) = train, test, valid
-            fake_data = self.datasource.fake_non_iid_data(
-                min_train=model_config['min_train_size'],
-                max_train=FederatedClient.MAX_DATASET_SIZE_KEPT,
-                data_split=model_config['data_split']
-            )
-            self.local_model = LocalModel(model_config, fake_data)
-            # ready to be dispatched for training
-            self.sio.emit('client_ready', {
-                    'train_size': self.local_model.x_train.shape[0],
-                })
 
         def on_request_update(*args):
             req = args[0]
@@ -139,16 +149,12 @@ class FederatedClient(object):
             self.sio.emit('client_update', resp)
 
 
-        self.sio = SocketIO(server_host, server_port, LoggingNamespace)
         self.sio.on('connect', on_connect)
         self.sio.on('disconnect', on_disconnect)
         self.sio.on('reconnect', on_reconnect)
-        self.sio.on('init', on_init)
+        self.sio.on('init', lambda *args: self.on_init(*args))
         self.sio.on('request_update', on_request_update)
 
-        print("sent wakeup")
-        self.sio.emit('client_wake_up')
-        self.sio.wait()
 
 
 
