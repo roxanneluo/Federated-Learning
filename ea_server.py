@@ -9,7 +9,7 @@ def print_request(head, req):
 class GlobalModel_MNIST_CNN_EASGD(GlobalModel_MNIST_CNN):
     def update_weights(self, client_weights, client_sizes, elasticity):
         #FIXME weight by total size
-        new_weights = [gw + elasticity*(gw-w) for gw, w in
+        new_weights = [gw + elasticity*(w-gw) for gw, w in
                 zip(self.current_weights, client_weights)]
         self.current_weights = new_weights
 
@@ -75,6 +75,6 @@ if __name__ == '__main__':
     # is used if available, else the gevent web server is used.
 
     port = sys.argv[1]
-    server = ElasticAveragingServer(GlobalModel_MNIST_CNN_EASGD, "127.0.0.1", int(port), 1, 0.5)
-    print("listening on 127.0.0.1:9000");
+    server = ElasticAveragingServer(GlobalModel_MNIST_CNN_EASGD, "127.0.0.1", int(port), 0.1, 0.1)
+    print("listening on 127.0.0.1:" + str(port));
     server.start()

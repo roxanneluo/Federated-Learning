@@ -17,7 +17,7 @@ from flask import *
 from flask_socketio import SocketIO
 from flask_socketio import *
 # https://flask-socketio.readthedocs.io/en/latest/
-       
+
 
 
 def obj_to_pickle_string(x):
@@ -37,7 +37,7 @@ class GlobalModel(object):
         self.current_weights = self.model.get_weights()
         # for convergence check
         self.prev_train_loss = None
-    
+
     def build_model(self):
         raise NotImplementedError()
 
@@ -49,7 +49,7 @@ class GlobalModel(object):
         for c in range(len(client_weights)):
             for i in range(len(new_weights)):
                 new_weights[i] += client_weights[c][i] * client_sizes[c] / total_size
-        self.current_weights = new_weights        
+        self.current_weights = new_weights
 
     def aggregate_loss_accuracy(self, client_losses, client_accuracies, client_sizes):
         total_size = np.sum(client_sizes)
@@ -59,7 +59,7 @@ class GlobalModel(object):
         aggr_accuraries = np.sum(client_accuracies[i] / total_size * client_sizes[i]
                 for i in range(len(client_sizes)))
         return aggr_loss, aggr_accuraries
-        
+
 
 class GlobalModel_MNIST_CNN(GlobalModel):
     def __init__(self):
@@ -79,18 +79,20 @@ class GlobalModel_MNIST_CNN(GlobalModel):
         model.add(Dropout(0.5))
         model.add(Dense(10, activation='softmax'))
 
+        """
         model.compile(loss=keras.losses.categorical_crossentropy,
                       optimizer=keras.optimizers.Adadelta(),
                       metrics=['accuracy'])
+                      """
         return model
 
-        
+
 ######## Flask server with Socket IO ########
 
 # Federated Averaging algorithm with the server pulling from clients
 
 class FLServer(object):
-    
+
     MIN_NUM_WORKERS = 1
     MAX_NUM_ROUNDS = 10
     NUM_CLIENTS_CONTACTED_PER_ROUND = 1
@@ -126,7 +128,7 @@ class FLServer(object):
                     'epoch_per_round': 1,
                     'batch_size': 10
                 }
-    
+
     def register_handles(self):
         # single-threaded async, no need to lock
 
@@ -175,7 +177,7 @@ class FLServer(object):
             if data['round_number'] == self.current_round:
                 self.current_round_client_updates += [data]
                 self.current_round_client_updates[-1]['weights'] = pickle_string_to_obj(data['weights'])
-                
+
                 # tolerate 30% unresponsive clients
                 if len(self.current_round_client_updates) > FLServer.NUM_CLIENTS_CONTACTED_PER_ROUND * .7:
                     self.global_model.update_weights(
@@ -208,7 +210,7 @@ class FLServer(object):
                         self.global_model.prev_train_loss = aggr_train_loss
                         self.train_next_round()
 
-    
+
     # Note: we assume that during training the #workers will be >= MIN_NUM_WORKERS
     def train_next_round(self):
         self.current_round += 1
@@ -246,7 +248,7 @@ if __name__ == '__main__':
     # When the application is in debug mode the Werkzeug development server is still used
     # and configured properly inside socketio.run(). In production mode the eventlet web server
     # is used if available, else the gevent web server is used.
-    
+
     server = FLServer(GlobalModel_MNIST_CNN, "127.0.0.1", 5000)
     print("listening on 127.0.0.1:5000");
     server.start()
