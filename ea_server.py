@@ -6,6 +6,14 @@ def print_request(head, req):
     print(head)
     [print(k, req[k]) for k in req if k != "weights"]
 
+def sq_diff(w1, w2):
+    s = 0
+    sq_norm = lambda x: np.inner(x.reshape(-1), x.reshape(-1))
+    for ww1, ww2 in zip(w1, w2):
+        s += sq_norm(ww1-ww2)
+    return s
+
+
 class GlobalModel_MNIST_CNN_EASGD(GlobalModel_MNIST_CNN):
     def update_weights(self, client_weights, client_size_ratio, elasticity):
         #FIXME weight by total size
@@ -40,6 +48,8 @@ class ClientMetadata:
     def get_all(self, keys):
         values = [[] for k in keys]
         for entry in self.meta.values():
+            if not np.array([k in entry for k in keys]).all():
+                continue
             for i, k in enumerate(keys):
                 values[i].append(entry[k])
         return values
@@ -105,10 +115,24 @@ class ElasticAveragingServer(FLServer):
             client_id = request.sid
             print_request('client %s _send_weights' % client_id, data)
             train_size_ratio = self.client_metadata.ratio(client_id,'train_size')
+            w = pickle_string_to_obj(data["weights"])
             print('train_size_ratio', train_size_ratio)
             with self.model_lock:
-                self.global_model.update_weights(pickle_string_to_obj(data['weights']),
-                        train_size_ratio, self.e)
+                self.global_model.update_weights(w, train_size_ratio, self.e)
+                gw = self.global_model.current_weights
+
+            # update client_metadata
+            result = data
+            del result["weights"]
+            # compute real loss
+            if 'train_loss' in result:
+                result["train_loss"] += self.e/2*sq_diff(w, gw)
+                self.client_metadata.set(client_id, result)
+                train_losses, train_accs, train_sizes = self.client_metadata.get_all(
+                        ['train_loss', 'train_accuracy', 'train_size'])
+                agg_train_loss, agg_train_acc = self.global_model.aggregate_loss_accuracy(train_losses, train_accs, train_sizes)
+                print(agg_train_loss, agg_train_acc)
+
 
 if __name__ == '__main__':
     # When the application is in debug mode the Werkzeug development server is still used
@@ -116,6 +140,6 @@ if __name__ == '__main__':
     # is used if available, else the gevent web server is used.
 
     port = sys.argv[1]
-    server = ElasticAveragingServer(GlobalModel_MNIST_CNN_EASGD, "127.0.0.1", int(port), 0.1, 0.1)
+    server = ElasticAveragingServer(GlobalModel_MNIST_CNN_EASGD, "127.0.0.1", int(port), 1, 0.1)
     print("listening on 127.0.0.1:" + str(port));
     server.start()
