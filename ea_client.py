@@ -46,7 +46,9 @@ class ElasticAveragingClient(FederatedClient):
         self.e = model_config["e"]
 
         def train():
+            iteration = 0
             while True:
+                iteration += 1
                 if random.random() < self.p:
                     self.request_weights()
                 with self.model_lock:
@@ -54,6 +56,9 @@ class ElasticAveragingClient(FederatedClient):
                     _, train_loss, train_accuracy = self.local_model.train_one_round()
                     self.result["train_loss"] = train_loss
                     self.result["train_accuracy"] = train_accuracy
+
+                #with self.model_lock:
+                #    print('validation')
 
         threading.Thread(target = train).start()
 

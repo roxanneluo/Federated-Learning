@@ -124,14 +124,16 @@ class ElasticAveragingServer(FLServer):
             # update client_metadata
             result = data
             del result["weights"]
-            # compute real loss
-            if 'train_loss' in result:
-                result["train_loss"] += self.e/2*sq_diff(w, gw)
-                self.client_metadata.set(client_id, result)
-                train_losses, train_accs, train_sizes = self.client_metadata.get_all(
-                        ['train_loss', 'train_accuracy', 'train_size'])
-                agg_train_loss, agg_train_acc = self.global_model.aggregate_loss_accuracy(train_losses, train_accs, train_sizes)
-                print(agg_train_loss, agg_train_acc)
+
+            for prefix in ['train', 'valid']:
+                if '%s_loss' % prefix in result:
+                    # compute real loss
+                    #result["train_loss"] += self.e/2*sq_diff(w, gw)
+                    self.client_metadata.set(client_id, result)
+                    losses, accs, sizes = self.client_metadata.get_all(
+                            [prefix+suf for suf in ['_loss' , '_accuracy', '_size']])
+                    agg_loss, agg_acc = self.global_model.aggregate_loss_accuracy(losses, accs, sizes)
+                    print(prefix + " results:", agg_loss, agg_acc)
 
 
 if __name__ == '__main__':
