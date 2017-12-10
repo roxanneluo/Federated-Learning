@@ -47,6 +47,7 @@ class ElasticAveragingClient(FederatedClient):
             while True:
                 if random.random() < self.p:
                     self.request_weights()
+                    break
                 with self.model_lock:
                     print('train')
                     self.local_model.train_one_round()
@@ -59,7 +60,7 @@ class ElasticAveragingClient(FederatedClient):
     def send_weights(self, weights):
         self.sio.emit('client_send_weights', {
             'weights': obj_to_pickle_string(weights),
-            'train_size': self.local_model.x_train.shape[0], # assume size won't change
+            #'train_size': self.local_model.x_train.shape[0], # assume size won't change
             })
 
 
