@@ -2,7 +2,7 @@ import random
 import sys
 import threading
 from fl_client import FederatedClient
-from fl_server import obj_to_pickle_string, pickle_string_to_obj
+from fl_server import obj_to_pickle_string, pickle_string_to_obj, FLServer
 from ea_server import print_request
 import datasource
 
@@ -57,8 +57,12 @@ class ElasticAveragingClient(FederatedClient):
                     self.result["train_loss"] = train_loss
                     self.result["train_accuracy"] = train_accuracy
 
-                #with self.model_lock:
-                #    print('validation')
+                if iteration % (FLServer.ROUNDS_BETWEEN_VALIDATIONS/self.p) == 0:
+                    with self.model_lock:
+                        print('validation')
+                        valid_loss, valid_accuracy = self.local_model.validate()
+                        self.result["valid_loss"] = valid_loss
+                        self.result["valid_accuracy"] = valid_accuracy
 
         threading.Thread(target = train).start()
 

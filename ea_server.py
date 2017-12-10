@@ -132,7 +132,8 @@ class ElasticAveragingServer(FLServer):
                     self.client_metadata.set(client_id, result)
                     losses, accs, sizes = self.client_metadata.get_all(
                             [prefix+suf for suf in ['_loss' , '_accuracy', '_size']])
-                    agg_loss, agg_acc = self.global_model.aggregate_train_loss_accuracy(losses, accs, sizes)
+                    agg_func = getattr(self.global_model, 'aggregate_%s_loss_accuracy' % prefix)
+                    agg_loss, agg_acc = agg_func(losses, accs, sizes)
                     print(prefix + " results:", agg_loss, agg_acc)
 
 
