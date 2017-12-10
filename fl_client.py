@@ -86,7 +86,7 @@ class LocalModel(object):
 # it contributes to the global model by sending its local gradients.
 
 class FederatedClient(object):
-    MAX_DATASET_SIZE_KEPT = 200
+    MAX_DATASET_SIZE_KEPT =1000
 
     def __init__(self, server_host, server_port, datasource):
         self.local_model = None

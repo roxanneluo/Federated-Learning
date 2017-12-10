@@ -139,10 +139,12 @@ class ElasticAveragingServer(FLServer):
                     # FIXME: if I want to plot how weight difference converges,
                     # I'd set loss to be the weighted average of sq_diff
                     # and set accuracy to be sqrt(diff/gw.norm())
+                    """
                     result["train_loss"] = sq_diff(w, gw)
                     result["valid_loss"] = list_sq_norm(gw)
                     result["train_accuracy"] = result["train_loss"] /result["valid_loss"] # ratio ||gw-w||/||gw||
                     result["valid_accuracy"] = list_sq_norm(w)
+                    """
                     self.client_metadata.set(client_id, result)
                     losses, accs, sizes = self.client_metadata.get_all(
                             [prefix+suf for suf in ['_loss' , '_accuracy', '_size']])
@@ -156,7 +158,10 @@ if __name__ == '__main__':
     # and configured properly inside socketio.run(). In production mode the eventlet web server
     # is used if available, else the gevent web server is used.
 
-    port = sys.argv[1]
-    server = ElasticAveragingServer(GlobalModel_MNIST_CNN_EASGD, "127.0.0.1", int(port), 0.1, 0.1)
+    port = int(sys.argv[1])
+    p = float(sys.argv[2]) if len(sys.argv) > 2 else 0.1
+    e = float(sys.argv[3]) if len(sys.argv) > 3 else 0.1
+
+    server = ElasticAveragingServer(GlobalModel_MNIST_CNN_EASGD, "127.0.0.1", port, p, e)
     print("listening on 127.0.0.1:" + str(port));
     server.start()
