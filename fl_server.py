@@ -121,9 +121,9 @@ class GlobalModel_MNIST_CNN(GlobalModel):
 
 class FLServer(object):
     
-    MIN_NUM_WORKERS = 10
-    MAX_NUM_ROUNDS = 20
-    NUM_CLIENTS_CONTACTED_PER_ROUND = 10
+    MIN_NUM_WORKERS = 5
+    MAX_NUM_ROUNDS = 50
+    NUM_CLIENTS_CONTACTED_PER_ROUND = 5
     ROUNDS_BETWEEN_VALIDATIONS = 2
 
     def __init__(self, global_model, host, port):
@@ -142,6 +142,7 @@ class FLServer(object):
         # training states
         self.current_round = -1  # -1 for not yet started
         self.current_round_client_updates = []
+        self.eval_client_updates = []
         #####
 
         # socket io messages
@@ -244,15 +245,32 @@ class FLServer(object):
                             (self.global_model.prev_train_loss - aggr_train_loss) / self.global_model.prev_train_loss < .01:
                         # converges
                         print("converges!")
-                        self.stop_training()
+                        self.stop_and_eval()
                         return
                     
                     self.global_model.prev_train_loss = aggr_train_loss
 
                     if self.current_round >= FLServer.MAX_NUM_ROUNDS:
-                        self.stop_training()
+                        self.stop_and_eval()
                     else:
                         self.train_next_round()
+
+        @self.socketio.on('client_eval')
+        def handle_client_eval(data):
+            print("handle client_eval", request.sid)
+            print("eval_resp", data)
+            self.eval_client_updates += [data]
+
+            # tolerate 30% unresponsive clients
+            if len(self.eval_client_updates) > FLServer.NUM_CLIENTS_CONTACTED_PER_ROUND * .7:
+                aggr_test_loss, aggr_test_accuracy = self.global_model.aggregate_loss_accuracy(
+                    [x['test_loss'] for x in self.eval_client_updates],
+                    [x['test_accuracy'] for x in self.eval_client_updates],
+                    [x['test_size'] for x in self.eval_client_updates],
+                );
+                print("\naggr_test_loss", aggr_test_loss)
+                print("aggr_test_accuracy", aggr_test_accuracy)
+                print("== done ==")
 
     
     # Note: we assume that during training the #workers will be >= MIN_NUM_WORKERS
@@ -276,12 +294,15 @@ class FLServer(object):
                     'run_validation': self.current_round % FLServer.ROUNDS_BETWEEN_VALIDATIONS == 0,
                 }, room=rid)
 
-    def stop_training(self):
-        emit('stop', {
-                'model_id': self.model_id,
-                'current_weights': obj_to_pickle_string(self.global_model.current_weights),
-                'weights_format': 'pickle'
-            })
+    
+    def stop_and_eval(self):
+        self.eval_client_updates = []
+        for rid in self.ready_client_sids:
+            emit('stop_and_eval', {
+                    'model_id': self.model_id,
+                    'current_weights': obj_to_pickle_string(self.global_model.current_weights),
+                    'weights_format': 'pickle'
+                }, room=rid)
 
     def start(self):
         self.socketio.run(self.app, host=self.host, port=self.port)
