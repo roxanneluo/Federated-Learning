@@ -7,11 +7,43 @@ def print_request(head, req):
     [print(k, req[k]) for k in req if k != "weights"]
 
 class GlobalModel_MNIST_CNN_EASGD(GlobalModel_MNIST_CNN):
-    def update_weights(self, client_weights, client_sizes, elasticity):
+    def update_weights(self, client_weights, client_size_ratio, elasticity):
         #FIXME weight by total size
-        new_weights = [gw + elasticity*(w-gw) for gw, w in
+        new_weights = [gw + elasticity*client_size_ratio * (w-gw) for gw, w in
                 zip(self.current_weights, client_weights)]
         self.current_weights = new_weights
+
+class ClientMetadata:
+    def __init__(self):
+        self.meta = {}
+
+    # data is a dict
+    def set(self, ID, data):
+        if ID not in self.meta:
+            self.meta[ID] = {}
+        self.meta[ID].update(data)
+
+    def remove(self, ID):
+        if ID in self.meta:
+            del self.meta[ID]
+
+    def sum(self, key):
+        s = 0
+        for ID in self.meta:
+            s += self.meta[ID][key]
+        return s
+
+    def ratio(self, ID, key):
+        val = self.meta[ID][key]
+        return float(val) / self.sum(key)
+
+    def get_all(self, keys):
+        values = [[] for k in keys]
+        for entry in self.meta.values():
+            for i, k in enumerate(keys):
+                values[i].append(entry[k])
+        return values
+
 
 class ElasticAveragingServer(FLServer):
     def __init__(self, global_model, host, port, p, e):
@@ -20,6 +52,9 @@ class ElasticAveragingServer(FLServer):
         self.p = p
         self.e = e   # weight for elasiticity term
         self.model_lock = threading.Lock()
+
+        self.client_metadata = ClientMetadata()
+
 
     def init_client_message(self):
         msg = super(ElasticAveragingServer, self).init_client_message()
@@ -41,10 +76,11 @@ class ElasticAveragingServer(FLServer):
             print(request.sid, "reconnected")
 
         @self.socketio.on('disconnect')
-        def handle_reconnect():
-            print(request.sid, "disconnected")
-            if request.sid in self.ready_client_sids:
-                self.ready_client_sids.remove(request.sid)
+        def handle_disconnect():
+            client_id = request.sid
+            print(client_id, "disconnected")
+            self.client_metadata.remove(client_id)
+            print(self.client_metadata)
 
         @self.socketio.on('client_wake_up')
         def handle_wake_up():
@@ -53,7 +89,9 @@ class ElasticAveragingServer(FLServer):
 
         @self.socketio.on('client_ready')
         def handle_client_ready(data):
-            pass
+            client_id = request.sid
+            self.client_metadata.set(client_id, data)
+            print('client_ready', client_id, self.client_metadata)
 
         @self.socketio.on('client_request_weights')
         def handle_request_weights():
@@ -64,10 +102,13 @@ class ElasticAveragingServer(FLServer):
 
         @self.socketio.on('client_send_weights')
         def handle_client_send_weights(data):
-            print_request('client_send_weights', data)
+            client_id = request.sid
+            print_request('client %s _send_weights' % client_id, data)
+            train_size_ratio = self.client_metadata.ratio(client_id,'train_size')
+            print('train_size_ratio', train_size_ratio)
             with self.model_lock:
                 self.global_model.update_weights(pickle_string_to_obj(data['weights']),
-                        data['train_size'], self.e)
+                        train_size_ratio, self.e)
 
 if __name__ == '__main__':
     # When the application is in debug mode the Werkzeug development server is still used
