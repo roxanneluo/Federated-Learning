@@ -1,5 +1,5 @@
 flask
 keras
 flask-socketio
-msgpack
-msgpack_numpy
+msgpack-numpy
+socketIO_client
