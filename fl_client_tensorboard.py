@@ -40,6 +40,11 @@ class LocalModel(object):
         self.x_valid = np.array([tup[0] for tup in valid_data])
         self.y_valid = np.squeeze(np.array([tup[1] for tup in valid_data]))
 
+        print(self.x_train.shape)
+
+        #input("Press Enter to continue...")
+
+
     def get_weights(self):
         return self.model.get_weights()
 
@@ -56,12 +61,15 @@ class LocalModel(object):
 
         with self.graph.as_default():
             print('train shape', self.x_train.shape, self.y_train.shape)
+            #tbCallBack = keras.callbacks.TensorBoard(log_dir="logs/{}".format(time.time()),
+            #    histogram_freq=0, write_graph=True, write_images=True)
 
             self.model.fit(self.x_train, self.y_train,
                       epochs=self.model_config['epoch_per_round'],
                       batch_size=self.model_config['batch_size'],
                       verbose=1,
-                      validation_data=(self.x_valid, self.y_valid))
+                      validation_data=(self.x_valid, self.y_valid))#,
+                      #callbacks = [tbCallBack])
 
             score = self.model.evaluate(self.x_train, self.y_train, verbose=0)
             print('Train loss:', score[0])
@@ -86,7 +94,7 @@ class LocalModel(object):
 # it contributes to the global model by sending its local gradients.
 
 class FederatedClient(object):
-    MAX_DATASET_SIZE_KEPT = 200
+    MAX_DATASET_SIZE_KEPT = 100
 
     def __init__(self, server_host, server_port, datasource):
         self.local_model = None
@@ -138,9 +146,14 @@ class FederatedClient(object):
             #     'weights_format'
             #     'run_validation'
             print("update requested")
+            for x in req:
+                if x != "current_weights":
+                    print("\t", x)
 
             if req['weights_format'] == 'pickle':
                 weights = pickle_string_to_obj(req['current_weights'])
+                for w in weights:
+                    print(w.shape)
 
             self.local_model.set_weights(weights)
             my_weights, train_loss, train_accuracy = self.local_model.train_one_round()
@@ -203,4 +216,4 @@ class FederatedClient(object):
 
 
 if __name__ == "__main__":
-    FederatedClient("127.0.0.1", 5000, datasource.Mnist)
+    c = FederatedClient("127.0.0.1", 5000, datasource.Mnist)

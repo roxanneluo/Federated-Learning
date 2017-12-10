@@ -68,7 +68,7 @@ class Mnist(DataSource):
         
         train_size = random.randint(min_train, max_train)
         test_size = int(train_size / data_split[0] * data_split[1])
-        valid_size = int(train_size / data_split[0] * data_split[1])
+        valid_size = int(train_size / data_split[0] * data_split[2])
 
         train_set = [self.sample_single_non_iid(my_class_distr) for _ in range(train_size)]
         test_set = [self.sample_single_non_iid(my_class_distr) for _ in range(test_size)]
