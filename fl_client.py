@@ -42,7 +42,7 @@ class LocalModel(object):
 
         print(self.x_train.shape)
 
-        input("Press Enter to continue...")
+        #input("Press Enter to continue...")
 
 
     def get_weights(self):
@@ -61,6 +61,7 @@ class LocalModel(object):
 
         with self.graph.as_default():
             print('train shape', self.x_train.shape, self.y_train.shape)
+
             self.model.fit(self.x_train, self.y_train,
                       epochs=self.model_config['epoch_per_round'],
                       batch_size=self.model_config['batch_size'],
@@ -118,6 +119,7 @@ class FederatedClient(object):
         # ready to be dispatched for training
         self.sio.emit('client_ready', {
                 'train_size': self.local_model.x_train.shape[0],
+                'valid_size': self.local_model.x_valid.shape[0],
             })
 
 
