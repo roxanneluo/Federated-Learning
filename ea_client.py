@@ -44,6 +44,8 @@ class ElasticAveragingClient(FederatedClient):
         model_config = args[0]
         self.p = model_config["p"]
         self.e = model_config["e"]
+        with self.model_lock:
+            self.local_model.set_weights(pickle_string_to_obj(model_config["weights"]))
 
         def train():
             iteration = 0

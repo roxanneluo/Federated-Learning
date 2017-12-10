@@ -77,6 +77,9 @@ class ElasticAveragingServer(FLServer):
         msg["epoch_per_round"] = 1
         msg["e"] = self.e
         msg["p"] = self.p
+        with self.model_lock:
+            msg["weights"] = obj_to_pickle_string(
+                    self.global_model.current_weights)
         return msg
 
     def register_handles(self):
@@ -96,7 +99,7 @@ class ElasticAveragingServer(FLServer):
             client_id = request.sid
             print(client_id, "disconnected")
             self.client_metadata.remove(client_id)
-            print(self.client_metadata)
+            print(self.client_metadata.meta)
 
         @self.socketio.on('client_wake_up')
         def handle_wake_up():
@@ -107,7 +110,7 @@ class ElasticAveragingServer(FLServer):
         def handle_client_ready(data):
             client_id = request.sid
             self.client_metadata.set(client_id, data)
-            print('client_ready', client_id, self.client_metadata)
+            print('client_ready', client_id, self.client_metadata.meta)
 
         @self.socketio.on('client_request_weights')
         def handle_request_weights():
@@ -136,8 +139,10 @@ class ElasticAveragingServer(FLServer):
                     # FIXME: if I want to plot how weight difference converges,
                     # I'd set loss to be the weighted average of sq_diff
                     # and set accuracy to be sqrt(diff/gw.norm())
-                    #result["train_loss"] = sq_diff(w, gw)
-                    #result["train_accuracy"] = result["train_loss"] /list_sq_norm(gw))
+                    result["train_loss"] = sq_diff(w, gw)
+                    result["valid_loss"] = list_sq_norm(gw)
+                    result["train_accuracy"] = result["train_loss"] /result["valid_loss"] # ratio ||gw-w||/||gw||
+                    result["valid_accuracy"] = list_sq_norm(w)
                     self.client_metadata.set(client_id, result)
                     losses, accs, sizes = self.client_metadata.get_all(
                             [prefix+suf for suf in ['_loss' , '_accuracy', '_size']])

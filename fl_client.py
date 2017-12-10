@@ -102,7 +102,6 @@ class FederatedClient(object):
     ########## Socket Event Handler ##########
     def on_init(self, *args):
         model_config = args[0]
-        print('on init', model_config)
         print('preparing local data based on server model_config')
         # ([(Xi, Yi)], [], []) = train, test, valid
         fake_data = self.datasource.fake_non_iid_data(
