@@ -1,14 +1,20 @@
 from fl_server import *
 import sys
 import threading
+from math import sqrt
 
 def print_request(head, req):
     print(head)
     [print(k, req[k]) for k in req if k != "weights"]
 
+def sq_norm(x):
+    return np.inner(x.reshape(-1), x.reshape(-1))
+
+def list_sq_norm(x):
+    return np.sum([sq_norm(w) for w in x])
+
 def sq_diff(w1, w2):
     s = 0
-    sq_norm = lambda x: np.inner(x.reshape(-1), x.reshape(-1))
     for ww1, ww2 in zip(w1, w2):
         s += sq_norm(ww1-ww2)
     return s
@@ -118,8 +124,8 @@ class ElasticAveragingServer(FLServer):
             w = pickle_string_to_obj(data["weights"])
             print('train_size_ratio', train_size_ratio)
             with self.model_lock:
-                self.global_model.update_weights(w, train_size_ratio, self.e)
                 gw = self.global_model.current_weights
+                self.global_model.update_weights(w, train_size_ratio, self.e)
 
             # update client_metadata
             result = data
@@ -127,8 +133,11 @@ class ElasticAveragingServer(FLServer):
 
             for prefix in ['train', 'valid']:
                 if '%s_loss' % prefix in result:
-                    # compute real loss
-                    #result["train_loss"] += self.e/2*sq_diff(w, gw)
+                    # FIXME: if I want to plot how weight difference converges,
+                    # I'd set loss to be the weighted average of sq_diff
+                    # and set accuracy to be sqrt(diff/gw.norm())
+                    #result["train_loss"] = sq_diff(w, gw)
+                    #result["train_accuracy"] = sqrt(sq_diff(w, gw) /list_sq_norm(gw))
                     self.client_metadata.set(client_id, result)
                     losses, accs, sizes = self.client_metadata.get_all(
                             [prefix+suf for suf in ['_loss' , '_accuracy', '_size']])
@@ -143,6 +152,6 @@ if __name__ == '__main__':
     # is used if available, else the gevent web server is used.
 
     port = sys.argv[1]
-    server = ElasticAveragingServer(GlobalModel_MNIST_CNN_EASGD, "127.0.0.1", int(port), 1, 0.1)
+    server = ElasticAveragingServer(GlobalModel_MNIST_CNN_EASGD, "127.0.0.1", int(port), 0.1, 0.1)
     print("listening on 127.0.0.1:" + str(port));
     server.start()
