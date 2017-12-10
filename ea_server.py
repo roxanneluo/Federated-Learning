@@ -137,7 +137,7 @@ class ElasticAveragingServer(FLServer):
                     # I'd set loss to be the weighted average of sq_diff
                     # and set accuracy to be sqrt(diff/gw.norm())
                     #result["train_loss"] = sq_diff(w, gw)
-                    #result["train_accuracy"] = sqrt(sq_diff(w, gw) /list_sq_norm(gw))
+                    #result["train_accuracy"] = result["train_loss"] /list_sq_norm(gw))
                     self.client_metadata.set(client_id, result)
                     losses, accs, sizes = self.client_metadata.get_all(
                             [prefix+suf for suf in ['_loss' , '_accuracy', '_size']])
