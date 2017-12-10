@@ -40,11 +40,6 @@ class LocalModel(object):
         self.x_valid = np.array([tup[0] for tup in valid_data])
         self.y_valid = np.squeeze(np.array([tup[1] for tup in valid_data]))
 
-        print(self.x_train.shape)
-
-        input("Press Enter to continue...")
-
-
     def get_weights(self):
         return self.model.get_weights()
 
@@ -90,7 +85,7 @@ class LocalModel(object):
 # it contributes to the global model by sending its local gradients.
 
 class FederatedClient(object):
-    MAX_DATASET_SIZE_KEPT = 100
+    MAX_DATASET_SIZE_KEPT = 200
 
     def __init__(self, server_host, server_port, datasource):
         self.local_model = None
@@ -141,14 +136,9 @@ class FederatedClient(object):
             #     'weights_format'
             #     'run_validation'
             print("update requested")
-            for x in req:
-                if x != "current_weights":
-                    print("\t", x)
 
             if req['weights_format'] == 'pickle':
                 weights = pickle_string_to_obj(req['current_weights'])
-                for w in weights:
-                    print(w.shape)
 
             self.local_model.set_weights(weights)
             my_weights, train_loss, train_accuracy = self.local_model.train_one_round()
@@ -211,4 +201,4 @@ class FederatedClient(object):
 
 
 if __name__ == "__main__":
-    c = FederatedClient("127.0.0.1", 5000, datasource.Mnist)
+    FederatedClient("127.0.0.1", 5000, datasource.Mnist)

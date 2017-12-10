@@ -10,24 +10,17 @@ import msgpack
 import random
 import codecs
 import numpy as np
+import json
 import msgpack_numpy
 # https://github.com/lebedov/msgpack-numpy
+
+import sys
+import time
 
 from flask import *
 from flask_socketio import SocketIO
 from flask_socketio import *
 # https://flask-socketio.readthedocs.io/en/latest/
-
-
-
-def obj_to_pickle_string(x):
-    return codecs.encode(pickle.dumps(x), "base64").decode()
-    # return msgpack.packb(x, default=msgpack_numpy.encode)
-    # TODO: compare pickle vs msgpack vs json for serialization; tradeoff: computation vs network IO
-
-def pickle_string_to_obj(s):
-    return pickle.loads(codecs.decode(s.encode(), "base64"))
-    # return msgpack.unpackb(s, object_hook=msgpack_numpy.decode)
 
 
 class GlobalModel(object):
@@ -37,6 +30,17 @@ class GlobalModel(object):
         self.current_weights = self.model.get_weights()
         # for convergence check
         self.prev_train_loss = None
+
+<<<<<<< 13da25095f88b3e896e6b8921a731c2caffd0f8b
+=======
+        # all rounds; losses[i] = [round#, timestamp, loss]
+        # round# could be None if not applicable
+        self.train_losses = []
+        self.valid_losses = []
+        self.train_accuracies = []
+        self.valid_accuracies = []
+
+        self.training_start_time = int(round(time.time()))
 
     def build_model(self):
         raise NotImplementedError()
@@ -59,6 +63,34 @@ class GlobalModel(object):
         aggr_accuraries = np.sum(client_accuracies[i] / total_size * client_sizes[i]
                 for i in range(len(client_sizes)))
         return aggr_loss, aggr_accuraries
+
+    # cur_round coule be None
+    def aggregate_train_loss_accuracy(self, client_losses, client_accuracies, client_sizes, cur_round):
+        cur_time = int(round(time.time())) - self.training_start_time
+        aggr_loss, aggr_accuraries = self.aggregate_loss_accuracy(client_losses, client_accuracies, client_sizes)
+        self.train_losses += [[cur_round, cur_time, aggr_loss]]
+        self.train_accuracies += [[cur_round, cur_time, aggr_accuraries]]
+        with open('stats.txt', 'w') as outfile:
+            json.dump(self.get_stats(), outfile)
+        return aggr_loss, aggr_accuraries
+
+    # cur_round coule be None
+    def aggregate_valid_loss_accuracy(self, client_losses, client_accuracies, client_sizes, cur_round):
+        cur_time = int(round(time.time())) - self.training_start_time
+        aggr_loss, aggr_accuraries = self.aggregate_loss_accuracy(client_losses, client_accuracies, client_sizes)
+        self.valid_losses += [[cur_round, cur_time, aggr_loss]]
+        self.valid_accuracies += [[cur_round, cur_time, aggr_accuraries]]
+        with open('stats.txt', 'w') as outfile:
+            json.dump(self.get_stats(), outfile)
+        return aggr_loss, aggr_accuraries
+
+    def get_stats(self):
+        return {
+            "train_loss": self.train_losses,
+            "valid_loss": self.valid_losses,
+            "train_accuracy": self.train_accuracies,
+            "valid_accuracy": self.valid_accuracies
+        }
 
 
 class GlobalModel_MNIST_CNN(GlobalModel):
@@ -93,9 +125,9 @@ class GlobalModel_MNIST_CNN(GlobalModel):
 
 class FLServer(object):
 
-    MIN_NUM_WORKERS = 1
-    MAX_NUM_ROUNDS = 10
-    NUM_CLIENTS_CONTACTED_PER_ROUND = 1
+    MIN_NUM_WORKERS = 10
+    MAX_NUM_ROUNDS = 20
+    NUM_CLIENTS_CONTACTED_PER_ROUND = 10
     ROUNDS_BETWEEN_VALIDATIONS = 10
 
     def __init__(self, global_model, host, port):
@@ -116,6 +148,7 @@ class FLServer(object):
         self.current_round_client_updates = []
         #####
 
+        # socket io messages
         self.register_handles()
 
 
@@ -128,6 +161,15 @@ class FLServer(object):
                     'epoch_per_round': 1,
                     'batch_size': 10
                 }
+
+        @self.app.route('/')
+        def dashboard():
+            return render_template('dashboard.html')
+
+        @self.app.route('/stats')
+        def status_page():
+            return json.dumps(self.global_model.get_stats())
+
 
     def register_handles(self):
         # single-threaded async, no need to lock
@@ -160,6 +202,7 @@ class FLServer(object):
 
         @self.socketio.on('client_update')
         def handle_client_update(data):
+            print("received client update of bytes: ", sys.getsizeof(data))
             print("handle client_update", request.sid)
             for x in data:
                 if x != 'weights':
@@ -184,19 +227,22 @@ class FLServer(object):
                         [x['weights'] for x in self.current_round_client_updates],
                         [x['train_size'] for x in self.current_round_client_updates],
                     )
-                    aggr_train_loss, aggr_train_accuracy = self.global_model.aggregate_loss_accuracy(
+                    aggr_train_loss, aggr_train_accuracy = self.global_model.aggregate_train_loss_accuracy(
                         [x['train_loss'] for x in self.current_round_client_updates],
                         [x['train_accuracy'] for x in self.current_round_client_updates],
                         [x['train_size'] for x in self.current_round_client_updates],
+                        self.current_round
                     )
+
                     print("aggr_train_loss", aggr_train_loss)
                     print("aggr_train_accuracy", aggr_train_accuracy)
 
                     if 'valid_loss' in self.current_round_client_updates[0]:
-                        aggr_valid_loss, aggr_valid_accuracy = self.global_model.aggregate_loss_accuracy(
+                        aggr_valid_loss, aggr_valid_accuracy = self.global_model.aggregate_valid_loss_accuracy(
                             [x['valid_loss'] for x in self.current_round_client_updates],
                             [x['valid_accuracy'] for x in self.current_round_client_updates],
                             [x['valid_size'] for x in self.current_round_client_updates],
+                            self.current_round
                         )
                         print("aggr_valid_loss", aggr_valid_loss)
                         print("aggr_valid_accuracy", aggr_valid_accuracy)
@@ -206,8 +252,13 @@ class FLServer(object):
                         # converges
                         print("converges!")
                         self.stop_training()
+                        return
+
+                    self.global_model.prev_train_loss = aggr_train_loss
+
+                    if self.current_round >= FLServer.MAX_NUM_ROUNDS:
+                        self.stop_training()
                     else:
-                        self.global_model.prev_train_loss = aggr_train_loss
                         self.train_next_round()
 
 
@@ -242,6 +293,16 @@ class FLServer(object):
     def start(self):
         self.socketio.run(self.app, host=self.host, port=self.port)
 
+
+
+def obj_to_pickle_string(x):
+    return codecs.encode(pickle.dumps(x), "base64").decode()
+    # return msgpack.packb(x, default=msgpack_numpy.encode)
+    # TODO: compare pickle vs msgpack vs json for serialization; tradeoff: computation vs network IO
+
+def pickle_string_to_obj(s):
+    return pickle.loads(codecs.decode(s.encode(), "base64"))
+    # return msgpack.unpackb(s, object_hook=msgpack_numpy.decode)
 
 
 if __name__ == '__main__':
