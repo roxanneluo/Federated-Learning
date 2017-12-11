@@ -67,15 +67,16 @@ class ClientMetadata:
 
 
 class ElasticAveragingServer(FLServer):
-    def __init__(self, global_model, host, port, p, e):
+    def __init__(self, global_model, host, port, p, e, stats_filename):
         super(ElasticAveragingServer, self).__init__(global_model, host, port,
-                async_handlers = True)
+                async_handlers = True, stats_filename = stats_filename)
         # probability to synchronize. Note: here epoch_per_round ~ 1/p
         self.p = p
         self.e = e   # weight for elasiticity term
         self.model_lock = threading.Lock()
 
         self.client_metadata = ClientMetadata()
+        self.weights_fn = stats_filename.split('.')[0] + '.npy'
 
 
     def init_client_message(self):
@@ -156,18 +157,21 @@ class ElasticAveragingServer(FLServer):
                     agg_loss, agg_acc = agg_func(losses, accs, sizes)
                     print(prefix + " results:", agg_loss, agg_acc)
 
-                    if prefix == 'train':
-                        if self.global_model.prev_train_loss is not None and \
-                            fabs(self.global_model.prev_train_loss - agg_loss) / self.global_model.prev_train_loss < 1e-4:
+                    if prefix == 'valid':
+                        #if self.global_model.prev_train_loss is not None and \
+                        #   fabs(self.global_model.prev_train_loss - agg_loss) / self.global_model.prev_train_loss < 1e-4:
+                        if agg_acc > 0.99:
                             # converges
                             print("converges!")
                             self.stop_and_eval()
                             return
-                        self.global_model.prev_train_loss = agg_loss
+                        #self.global_model.prev_train_loss = agg_loss
 
 
     def stop_and_eval(self):
         self.eval_client_updates = []
+        with self.model_lock:
+            np.save(self.weights_fn, self.global_model.current_weights)
         for rid in self.client_metadata.meta:
             emit('stop_and_eval', {
                     'model_id': self.model_id,
@@ -185,8 +189,10 @@ if __name__ == '__main__':
     p = float(sys.argv[2]) if len(sys.argv) > 2 else 0.1
     e = float(sys.argv[3]) if len(sys.argv) > 3 else 0.1
     seed = int(sys.argv[4]) if len(sys.argv) > 4 else random.seed()
+    stats_fn = sys.argv[5] if len(sys.argv) > 5 else 'stats.txt'
     random.seed(seed)
 
-    server = ElasticAveragingServer(GlobalModel_MNIST_CNN_EASGD, "127.0.0.1", port, p, e)
+    server = ElasticAveragingServer(GlobalModel_MNIST_CNN_EASGD, "127.0.0.1", port, p, e,
+            stats_filename = stats_fn)
     print("listening on 127.0.0.1:" + str(port));
     server.start()

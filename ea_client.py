@@ -52,6 +52,7 @@ class ElasticAveragingClient(FederatedClient):
             iteration = 0
             while self.alive:
                 iteration += 1
+                print('iter', iteration)
                 if random.random() < self.p:
                     self.request_weights()
                 with self.model_lock:
@@ -59,7 +60,7 @@ class ElasticAveragingClient(FederatedClient):
                     self.result["train_loss"] = train_loss
                     self.result["train_accuracy"] = train_accuracy
 
-                if iteration % (FLServer.ROUNDS_BETWEEN_VALIDATIONS/self.p) == 0:
+                if iteration % FLServer.ROUNDS_BETWEEN_VALIDATIONS == 0:
                     with self.model_lock:
                         valid_loss, valid_accuracy = self.local_model.validate()
                         self.result["valid_loss"] = valid_loss

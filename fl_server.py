@@ -24,7 +24,7 @@ from flask_socketio import *
 
 class GlobalModel(object):
     """docstring for GlobalModel"""
-    def __init__(self):
+    def __init__(self, stats_filename):
         self.model = self.build_model()
         self.current_weights = self.model.get_weights()
         # for convergence check
@@ -38,6 +38,8 @@ class GlobalModel(object):
         self.valid_accuracies = []
 
         self.training_start_time = int(round(time.time()))
+
+        self.stats_filename = stats_filename
 
     def build_model(self):
         raise NotImplementedError()
@@ -67,7 +69,7 @@ class GlobalModel(object):
         aggr_loss, aggr_accuraries = self.aggregate_loss_accuracy(client_losses, client_accuracies, client_sizes)
         self.train_losses += [[cur_round, cur_time, aggr_loss]]
         self.train_accuracies += [[cur_round, cur_time, aggr_accuraries]]
-        with open('stats.txt', 'w') as outfile:
+        with open(self.stats_filename, 'w') as outfile:
             json.dump(self.get_stats(), outfile)
         return aggr_loss, aggr_accuraries
 
@@ -77,7 +79,7 @@ class GlobalModel(object):
         aggr_loss, aggr_accuraries = self.aggregate_loss_accuracy(client_losses, client_accuracies, client_sizes)
         self.valid_losses += [[cur_round, cur_time, aggr_loss]]
         self.valid_accuracies += [[cur_round, cur_time, aggr_accuraries]]
-        with open('stats.txt', 'w') as outfile:
+        with open(self.stats_filename, 'w') as outfile:
             json.dump(self.get_stats(), outfile)
         return aggr_loss, aggr_accuraries
 
@@ -90,8 +92,8 @@ class GlobalModel(object):
         }
 
 class GlobalModel_MNIST_CNN(GlobalModel):
-    def __init__(self):
-        super(GlobalModel_MNIST_CNN, self).__init__()
+    def __init__(self, stats_filename):
+        super(GlobalModel_MNIST_CNN, self).__init__(stats_filename)
 
     def build_model(self):
         # ~5MB worth of parameters
@@ -126,8 +128,8 @@ class FLServer(object):
     NUM_CLIENTS_CONTACTED_PER_ROUND = 10
     ROUNDS_BETWEEN_VALIDATIONS = 10
 
-    def __init__(self, global_model, host, port, async_handlers = False):
-        self.global_model = global_model()
+    def __init__(self, global_model, host, port, async_handlers = False, stats_filename = 'stats.txt'):
+        self.global_model = global_model(stats_filename)
 
         self.ready_client_sids = set()
 
@@ -162,7 +164,7 @@ class FLServer(object):
         return {
                     'model_json': self.global_model.model.to_json(),
                     'model_id': self.model_id,
-                    'min_train_size': 1200,
+                    'min_train_size': 500,
                     'data_split': (0.6, 0.3, 0.1), # train, test, valid
                     'epoch_per_round': 1,
                     'batch_size': 10
