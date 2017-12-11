@@ -55,7 +55,7 @@ class LocalModel(object):
               """
 
         with self.graph.as_default():
-            print('train shape', self.x_train.shape, self.y_train.shape)
+            #print('train shape', self.x_train.shape, self.y_train.shape)
 
             self.model.fit(self.x_train, self.y_train,
                       epochs=self.model_config['epoch_per_round'],
@@ -63,21 +63,18 @@ class LocalModel(object):
                       verbose=1,
                       validation_data=(self.x_valid, self.y_valid))
 
+            print('train')
             score = self.model.evaluate(self.x_train, self.y_train, verbose=0)
-            print('Train loss:', score[0])
-            print('Train accuracy:', score[1])
             return self.model.get_weights(), score[0], score[1]
 
     def validate(self):
+        print('validate')
         score = self.model.evaluate(self.x_valid, self.y_valid, verbose=0)
-        print('Validate loss:', score[0])
-        print('Validate accuracy:', score[1])
         return score
 
     def evaluate(self):
+        print('evaluate')
         score = self.model.evaluate(self.x_test, self.y_test, verbose=0)
-        print('Test loss:', score[0])
-        print('Test accuracy:', score[1])
         return score
 
 
@@ -94,7 +91,7 @@ class FederatedClient(object):
 
         self.sio = SocketIO(server_host, server_port, LoggingNamespace)
         self.register_handles()
-        print("sent wakeup")
+        #print("sent wakeup")
         self.sio.emit('client_wake_up')
         self.sio.wait()
 

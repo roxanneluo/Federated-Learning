@@ -54,14 +54,13 @@ class ElasticAveragingClient(FederatedClient):
                 if random.random() < self.p:
                     self.request_weights()
                 with self.model_lock:
-                    print('train')
                     _, train_loss, train_accuracy = self.local_model.train_one_round()
                     self.result["train_loss"] = train_loss
                     self.result["train_accuracy"] = train_accuracy
 
                 if iteration % (FLServer.ROUNDS_BETWEEN_VALIDATIONS/self.p) == 0:
+                    print('validate', iteration)
                     with self.model_lock:
-                        print('validation')
                         valid_loss, valid_accuracy = self.local_model.validate()
                         self.result["valid_loss"] = valid_loss
                         self.result["valid_accuracy"] = valid_accuracy

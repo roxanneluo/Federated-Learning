@@ -4,8 +4,9 @@ import threading
 from math import sqrt
 
 def print_request(head, req):
-    print(head)
-    [print(k, req[k]) for k in req if k != "weights"]
+    pass
+    #print(head)
+    #[print(k, req[k]) for k in req if k != "weights"]
 
 def sq_norm(x):
     return np.inner(x.reshape(-1), x.reshape(-1))
@@ -40,6 +41,9 @@ class ClientMetadata:
     def remove(self, ID):
         if ID in self.meta:
             del self.meta[ID]
+
+    def size(self):
+        return len(self.meta)
 
     def sum(self, key):
         s = 0
@@ -83,7 +87,7 @@ class ElasticAveragingServer(FLServer):
         return msg
 
     def register_handles(self):
-        print('EA register handles')
+        #print('EA register handles')
         # single-threaded async, no need to lock
 
         @self.socketio.on('connect')
@@ -97,9 +101,8 @@ class ElasticAveragingServer(FLServer):
         @self.socketio.on('disconnect')
         def handle_disconnect():
             client_id = request.sid
-            print(client_id, "disconnected")
             self.client_metadata.remove(client_id)
-            print(self.client_metadata.meta)
+            print(client_id, "disconnected", '#clients=', self.client_metadata.size())
 
         @self.socketio.on('client_wake_up')
         def handle_wake_up():
@@ -110,11 +113,10 @@ class ElasticAveragingServer(FLServer):
         def handle_client_ready(data):
             client_id = request.sid
             self.client_metadata.set(client_id, data)
-            print('client_ready', client_id, self.client_metadata.meta)
 
         @self.socketio.on('client_request_weights')
         def handle_request_weights():
-            print('client_request_weights')
+            print_request('client_request_weights', {})
             with self.model_lock:
                 w = self.global_model.current_weights
             emit('server_send_weights', {'weights': obj_to_pickle_string(w)})
@@ -125,7 +127,7 @@ class ElasticAveragingServer(FLServer):
             print_request('client %s _send_weights' % client_id, data)
             train_size_ratio = self.client_metadata.ratio(client_id,'train_size')
             w = pickle_string_to_obj(data["weights"])
-            print('train_size_ratio', train_size_ratio)
+            #print('train_size_ratio', train_size_ratio)
             with self.model_lock:
                 gw = self.global_model.current_weights
                 self.global_model.update_weights(w, train_size_ratio, self.e)
