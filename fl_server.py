@@ -242,7 +242,7 @@ class FLServer(object):
                         print("aggr_valid_accuracy", aggr_valid_accuracy)
 
                     if self.global_model.prev_train_loss is not None and \
-                            (self.global_model.prev_train_loss - aggr_train_loss) / self.global_model.prev_train_loss < .01:
+                            abs(self.global_model.prev_train_loss - aggr_train_loss) / self.global_model.prev_train_loss < .01:
                         # converges
                         print("converges! starting test phase..")
                         self.stop_and_eval()
