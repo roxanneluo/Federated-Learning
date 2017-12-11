@@ -156,11 +156,26 @@ class FederatedClient(object):
             self.sio.emit('client_update', resp)
 
 
+        def on_stop_and_eval(*args):
+            req = args[0]
+            if req['weights_format'] == 'pickle':
+                weights = pickle_string_to_obj(req['current_weights'])
+            self.local_model.set_weights(weights)
+            test_loss, test_accuracy = self.local_model.evaluate()
+            resp = {
+                'test_size': self.local_model.x_test.shape[0],
+                'test_loss': test_loss,
+                'test_accuracy': test_accuracy
+            }
+            self.sio.emit('client_eval', resp)
+
+
         self.sio.on('connect', on_connect)
         self.sio.on('disconnect', on_disconnect)
         self.sio.on('reconnect', on_reconnect)
         self.sio.on('init', lambda *args: self.on_init(*args))
         self.sio.on('request_update', on_request_update)
+        self.sio.on('stop_and_eval', on_stop_and_eval)
 
 
 

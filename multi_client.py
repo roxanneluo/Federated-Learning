@@ -10,7 +10,7 @@ def start_client():
 
 if __name__ == '__main__':
     jobs = []
-    for i in range(10):
+    for i in range(5):
         # threading.Thread(target=start_client).start()
 
         p = multiprocessing.Process(target=start_client)

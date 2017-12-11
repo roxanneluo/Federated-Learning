@@ -22,7 +22,6 @@ from flask_socketio import SocketIO
 from flask_socketio import *
 # https://flask-socketio.readthedocs.io/en/latest/
 
-
 class GlobalModel(object):
     """docstring for GlobalModel"""
     def __init__(self):
@@ -31,8 +30,6 @@ class GlobalModel(object):
         # for convergence check
         self.prev_train_loss = None
 
-<<<<<<< 13da25095f88b3e896e6b8921a731c2caffd0f8b
-=======
         # all rounds; losses[i] = [round#, timestamp, loss]
         # round# could be None if not applicable
         self.train_losses = []
@@ -92,7 +89,6 @@ class GlobalModel(object):
             "valid_accuracy": self.valid_accuracies
         }
 
-
 class GlobalModel_MNIST_CNN(GlobalModel):
     def __init__(self):
         super(GlobalModel_MNIST_CNN, self).__init__()
@@ -146,6 +142,7 @@ class FLServer(object):
         # training states
         self.current_round = -1  # -1 for not yet started
         self.current_round_client_updates = []
+        self.eval_client_updates = []
         #####
 
         # socket io messages
@@ -170,7 +167,6 @@ class FLServer(object):
         def status_page():
             return json.dumps(self.global_model.get_stats())
 
-
     def register_handles(self):
         # single-threaded async, no need to lock
 
@@ -191,7 +187,14 @@ class FLServer(object):
         @self.socketio.on('client_wake_up')
         def handle_wake_up():
             print("client wake_up: ", request.sid)
-            emit('init', self.init_client_message())
+            emit('init', {
+                    'model_json': self.global_model.model.to_json(),
+                    'model_id': self.model_id,
+                    'min_train_size': 100,
+                    'data_split': (0.6, 0.3, 0.1), # train, test, valid
+                    'epoch_per_round': 1,
+                    'batch_size': 10
+                })
 
         @self.socketio.on('client_ready')
         def handle_client_ready(data):
@@ -251,15 +254,32 @@ class FLServer(object):
                             (self.global_model.prev_train_loss - aggr_train_loss) / self.global_model.prev_train_loss < .01:
                         # converges
                         print("converges!")
-                        self.stop_training()
+                        self.stop_and_eval()
                         return
 
                     self.global_model.prev_train_loss = aggr_train_loss
 
                     if self.current_round >= FLServer.MAX_NUM_ROUNDS:
-                        self.stop_training()
+                        self.stop_and_eval()
                     else:
                         self.train_next_round()
+
+        @self.socketio.on('client_eval')
+        def handle_client_eval(data):
+            print("handle client_eval", request.sid)
+            print("eval_resp", data)
+            self.eval_client_updates += [data]
+
+            # tolerate 30% unresponsive clients
+            if len(self.eval_client_updates) > FLServer.NUM_CLIENTS_CONTACTED_PER_ROUND * .7:
+                aggr_test_loss, aggr_test_accuracy = self.global_model.aggregate_loss_accuracy(
+                    [x['test_loss'] for x in self.eval_client_updates],
+                    [x['test_accuracy'] for x in self.eval_client_updates],
+                    [x['test_size'] for x in self.eval_client_updates],
+                );
+                print("\naggr_test_loss", aggr_test_loss)
+                print("aggr_test_accuracy", aggr_test_accuracy)
+                print("== done ==")
 
 
     # Note: we assume that during training the #workers will be >= MIN_NUM_WORKERS
@@ -283,12 +303,15 @@ class FLServer(object):
                     'run_validation': self.current_round % FLServer.ROUNDS_BETWEEN_VALIDATIONS == 0,
                 }, room=rid)
 
-    def stop_training(self):
-        emit('stop', {
-                'model_id': self.model_id,
-                'current_weights': obj_to_pickle_string(self.global_model.current_weights),
-                'weights_format': 'pickle'
-            })
+
+    def stop_and_eval(self):
+        self.eval_client_updates = []
+        for rid in self.ready_client_sids:
+            emit('stop_and_eval', {
+                    'model_id': self.model_id,
+                    'current_weights': obj_to_pickle_string(self.global_model.current_weights),
+                    'weights_format': 'pickle'
+                }, room=rid)
 
     def start(self):
         self.socketio.run(self.app, host=self.host, port=self.port)
