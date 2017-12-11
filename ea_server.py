@@ -53,6 +53,10 @@ class ClientMetadata:
         return s
 
     def ratio(self, ID, key):
+        if ID not in self.meta:
+            print(ID, 'not in meta')
+        elif key not in self.meta[ID]:
+            print(key, 'not in ', self.meta[ID])
         val = self.meta[ID][key]
         return float(val) / self.sum(key)
 
