@@ -1,7 +1,8 @@
 from fl_server import *
+import random
 import sys
 import threading
-from math import sqrt
+from math import sqrt, fabs
 
 def print_request(head, req):
     pass
@@ -67,7 +68,8 @@ class ClientMetadata:
 
 class ElasticAveragingServer(FLServer):
     def __init__(self, global_model, host, port, p, e):
-        super(ElasticAveragingServer, self).__init__(global_model, host, port)
+        super(ElasticAveragingServer, self).__init__(global_model, host, port,
+                async_handlers = True)
         # probability to synchronize. Note: here epoch_per_round ~ 1/p
         self.p = p
         self.e = e   # weight for elasiticity term
@@ -156,7 +158,7 @@ class ElasticAveragingServer(FLServer):
 
                     if prefix == 'train':
                         if self.global_model.prev_train_loss is not None and \
-                            (self.global_model.prev_train_loss - agg_loss) / self.global_model.prev_train_loss < 0.01:
+                            fabs(self.global_model.prev_train_loss - agg_loss) / self.global_model.prev_train_loss < 1e-4:
                             # converges
                             print("converges!")
                             self.stop_and_eval()
@@ -182,6 +184,8 @@ if __name__ == '__main__':
     port = int(sys.argv[1])
     p = float(sys.argv[2]) if len(sys.argv) > 2 else 0.1
     e = float(sys.argv[3]) if len(sys.argv) > 3 else 0.1
+    seed = int(sys.argv[4]) if len(sys.argv) > 4 else random.seed()
+    random.seed(seed)
 
     server = ElasticAveragingServer(GlobalModel_MNIST_CNN_EASGD, "127.0.0.1", port, p, e)
     print("listening on 127.0.0.1:" + str(port));

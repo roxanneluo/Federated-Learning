@@ -126,13 +126,13 @@ class FLServer(object):
     NUM_CLIENTS_CONTACTED_PER_ROUND = 10
     ROUNDS_BETWEEN_VALIDATIONS = 10
 
-    def __init__(self, global_model, host, port):
+    def __init__(self, global_model, host, port, async_handlers = False):
         self.global_model = global_model()
 
         self.ready_client_sids = set()
 
         self.app = Flask(__name__)
-        self.socketio = SocketIO(self.app)
+        self.socketio = SocketIO(self.app, async_handlers=async_handlers)
         self.host = host
         self.port = port
 

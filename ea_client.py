@@ -78,4 +78,6 @@ class ElasticAveragingClient(FederatedClient):
 
 if __name__ == "__main__":
     port = sys.argv[1]
+    seed = int(sys.argv[2]) if len(sys.argv) > 2 else random.seed()
+    random.seed(seed)
     c = ElasticAveragingClient("127.0.0.1", int(port), datasource.Mnist)
