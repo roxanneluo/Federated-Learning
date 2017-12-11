@@ -76,7 +76,8 @@ class ElasticAveragingServer(FLServer):
         self.model_lock = threading.Lock()
 
         self.client_metadata = ClientMetadata()
-        self.weights_fn = stats_filename.split('.')[0] + '.npy'
+        self.weights_fn = '.'.join(stats_filename.split('.')[:-1]) + '.npy'
+        print('weights fn', self.weights_fn)
 
 
     def init_client_message(self):
