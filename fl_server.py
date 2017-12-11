@@ -181,7 +181,7 @@ class FLServer(object):
             emit('init', {
                     'model_json': self.global_model.model.to_json(),
                     'model_id': self.model_id,
-                    'min_train_size': 100,
+                    'min_train_size': 1200,
                     'data_split': (0.6, 0.3, 0.1), # train, test, valid
                     'epoch_per_round': 1,
                     'batch_size': 10
@@ -244,7 +244,7 @@ class FLServer(object):
                     if self.global_model.prev_train_loss is not None and \
                             (self.global_model.prev_train_loss - aggr_train_loss) / self.global_model.prev_train_loss < .01:
                         # converges
-                        print("converges!")
+                        print("converges! starting test phase..")
                         self.stop_and_eval()
                         return
                     
@@ -257,6 +257,8 @@ class FLServer(object):
 
         @self.socketio.on('client_eval')
         def handle_client_eval(data):
+            if self.eval_client_updates is None:
+                return
             print("handle client_eval", request.sid)
             print("eval_resp", data)
             self.eval_client_updates += [data]
@@ -271,6 +273,7 @@ class FLServer(object):
                 print("\naggr_test_loss", aggr_test_loss)
                 print("aggr_test_accuracy", aggr_test_accuracy)
                 print("== done ==")
+                self.eval_client_updates = None  # special value, forbid evaling again
 
     
     # Note: we assume that during training the #workers will be >= MIN_NUM_WORKERS
