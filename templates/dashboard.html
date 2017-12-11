@@ -144,20 +144,20 @@
         Plotly.newPlot('chart_accuracies_ts', [train_accuracy_trace_ts, valid_accuracy_trace_ts], layout);
     }
 
+    var update = setInterval(function(){
+        $.get("/stats", function(data) {
+            data = JSON.parse(data);
+            draw_losses(data);
+            draw_accuracies(data);        
+        });
+    }, 5000); // 5s
+
     function load_data(data) {
+        clearInterval(update);
         draw_losses(data);
         draw_accuracies(data);        
     }
 
-    $(document).ready(function() {
-        setInterval(function(){
-            $.get("/stats", function(data) {
-                data = JSON.parse(data);
-                load_data(data);
-            });
-        }, 5000); // 5s
-
-    });
   </script>
 
 </body>
