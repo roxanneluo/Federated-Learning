@@ -14,6 +14,7 @@ class ElasticAveragingClient(FederatedClient):
         self.e = None   # weight for elasiticity term
         self.model_lock = threading.Lock()
         self.result = {} # train/validation loss and accuracy
+        self.alive = True
 
         super(ElasticAveragingClient, self).__init__(server_host, server_port, datasource)
 
@@ -49,7 +50,7 @@ class ElasticAveragingClient(FederatedClient):
 
         def train():
             iteration = 0
-            while True:
+            while self.alive:
                 iteration += 1
                 if random.random() < self.p:
                     self.request_weights()
@@ -59,7 +60,6 @@ class ElasticAveragingClient(FederatedClient):
                     self.result["train_accuracy"] = train_accuracy
 
                 if iteration % (FLServer.ROUNDS_BETWEEN_VALIDATIONS/self.p) == 0:
-                    print('validate', iteration)
                     with self.model_lock:
                         valid_loss, valid_accuracy = self.local_model.validate()
                         self.result["valid_loss"] = valid_loss

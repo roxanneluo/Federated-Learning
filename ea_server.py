@@ -154,6 +154,25 @@ class ElasticAveragingServer(FLServer):
                     agg_loss, agg_acc = agg_func(losses, accs, sizes)
                     print(prefix + " results:", agg_loss, agg_acc)
 
+                    if prefix == 'train':
+                        if self.global_model.prev_train_loss is not None and \
+                            (self.global_model.prev_train_loss - agg_loss) / self.global_model.prev_train_loss < 0.01:
+                            # converges
+                            print("converges!")
+                            self.stop_and_eval()
+                            return
+                        self.global_model.prev_train_loss = agg_loss
+
+
+    def stop_and_eval(self):
+        self.eval_client_updates = []
+        for rid in self.client_metadata.meta:
+            emit('stop_and_eval', {
+                    'model_id': self.model_id,
+                    'current_weights': obj_to_pickle_string(self.global_model.current_weights),
+                    'weights_format': 'pickle'
+                }, room=rid)
+
 
 if __name__ == '__main__':
     # When the application is in debug mode the Werkzeug development server is still used

@@ -83,7 +83,7 @@ class LocalModel(object):
 # it contributes to the global model by sending its local gradients.
 
 class FederatedClient(object):
-    MAX_DATASET_SIZE_KEPT =1000
+    MAX_DATASET_SIZE_KEPT =1500
 
     def __init__(self, server_host, server_port, datasource):
         self.local_model = None
@@ -168,6 +168,7 @@ class FederatedClient(object):
                 'test_accuracy': test_accuracy
             }
             self.sio.emit('client_eval', resp)
+            self.alive = False
 
 
         self.sio.on('connect', on_connect)

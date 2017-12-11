@@ -62,7 +62,7 @@ class GlobalModel(object):
         return aggr_loss, aggr_accuraries
 
     # cur_round coule be None
-    def aggregate_train_loss_accuracy(self, client_losses, client_accuracies, client_sizes, cur_round):
+    def aggregate_train_loss_accuracy(self, client_losses, client_accuracies, client_sizes, cur_round = None):
         cur_time = int(round(time.time())) - self.training_start_time
         aggr_loss, aggr_accuraries = self.aggregate_loss_accuracy(client_losses, client_accuracies, client_sizes)
         self.train_losses += [[cur_round, cur_time, aggr_loss]]
@@ -72,7 +72,7 @@ class GlobalModel(object):
         return aggr_loss, aggr_accuraries
 
     # cur_round coule be None
-    def aggregate_valid_loss_accuracy(self, client_losses, client_accuracies, client_sizes, cur_round):
+    def aggregate_valid_loss_accuracy(self, client_losses, client_accuracies, client_sizes, cur_round = None):
         cur_time = int(round(time.time())) - self.training_start_time
         aggr_loss, aggr_accuraries = self.aggregate_loss_accuracy(client_losses, client_accuracies, client_sizes)
         self.valid_losses += [[cur_round, cur_time, aggr_loss]]
@@ -148,17 +148,6 @@ class FLServer(object):
         # socket io messages
         self.register_handles()
 
-
-    def init_client_message(self):
-        return {
-                    'model_json': self.global_model.model.to_json(),
-                    'model_id': self.model_id,
-                    'min_train_size': 600,
-                    'data_split': (0.6, 0.3, 0.1), # train, test, valid
-                    'epoch_per_round': 1,
-                    'batch_size': 10
-                }
-
         @self.app.route('/')
         def dashboard():
             return render_template('dashboard.html')
@@ -166,6 +155,18 @@ class FLServer(object):
         @self.app.route('/stats')
         def status_page():
             return json.dumps(self.global_model.get_stats())
+
+
+
+    def init_client_message(self):
+        return {
+                    'model_json': self.global_model.model.to_json(),
+                    'model_id': self.model_id,
+                    'min_train_size': 1200,
+                    'data_split': (0.6, 0.3, 0.1), # train, test, valid
+                    'epoch_per_round': 1,
+                    'batch_size': 10
+                }
 
     def register_handles(self):
         # single-threaded async, no need to lock
