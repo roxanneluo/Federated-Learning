@@ -1,1 +1,0 @@
-{"train_accuracy": [[null, 138, 0.9983739837398374]], "train_loss": [[null, 138, 0.0026225164403173053]], "valid_accuracy": [[null, 138, 1.0]], "valid_loss": [[null, 138, 0.00014817792757907335]]}
