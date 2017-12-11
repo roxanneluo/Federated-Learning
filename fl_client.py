@@ -38,11 +38,6 @@ class LocalModel(object):
         self.x_valid = np.array([tup[0] for tup in valid_data])
         self.y_valid = np.array([tup[1] for tup in valid_data])
 
-        print(self.x_train.shape)
-
-        input("Press Enter to continue...")
-
-
     def get_weights(self):
         return self.model.get_weights()
 
@@ -84,7 +79,7 @@ class LocalModel(object):
 # it contributes to the global model by sending its local gradients.
 
 class FederatedClient(object):
-    MAX_DATASET_SIZE_KEPT = 100
+    MAX_DATASET_SIZE_KEPT = 200
 
     def __init__(self, server_host, server_port, datasource):
         self.local_model = None
@@ -135,14 +130,9 @@ class FederatedClient(object):
             #     'weights_format'
             #     'run_validation'
             print("update requested")
-            for x in req:
-                if x != "current_weights":
-                    print("\t", x)
 
             if req['weights_format'] == 'pickle':
                 weights = pickle_string_to_obj(req['current_weights'])
-                for w in weights:
-                    print(w.shape)
 
             self.local_model.set_weights(weights)
             my_weights, train_loss, train_accuracy = self.local_model.train_one_round()
@@ -162,11 +152,26 @@ class FederatedClient(object):
             self.sio.emit('client_update', resp)
 
 
+        def on_stop_and_eval(*args):
+            req = args[0]
+            if req['weights_format'] == 'pickle':
+                weights = pickle_string_to_obj(req['current_weights'])
+            self.local_model.set_weights(weights)
+            test_loss, test_accuracy = self.local_model.evaluate()
+            resp = {
+                'test_size': self.local_model.x_test.shape[0],
+                'test_loss': test_loss,
+                'test_accuracy': test_accuracy
+            }
+            self.sio.emit('client_eval', resp)
+
+
         self.sio.on('connect', on_connect)
         self.sio.on('disconnect', on_disconnect)
         self.sio.on('reconnect', on_reconnect)
         self.sio.on('init', lambda *args: self.on_init(*args))
         self.sio.on('request_update', on_request_update)
+        self.sio.on('stop_and_eval', on_stop_and_eval)
 
 
 
@@ -205,4 +210,4 @@ class FederatedClient(object):
 
 
 if __name__ == "__main__":
-    c = FederatedClient("127.0.0.1", 5000, datasource.Mnist)
+    FederatedClient("127.0.0.1", 5000, datasource.Mnist)

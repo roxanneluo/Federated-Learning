@@ -1,5 +1,0 @@
-flask
-keras
-flask-socketio
-msgpack
-msgpack_numpy
