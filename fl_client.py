@@ -101,7 +101,7 @@ class FederatedClient(object):
         model_config = args[0]
         print('preparing local data based on server model_config')
         # ([(Xi, Yi)], [], []) = train, test, valid
-        fake_data = self.datasource.fake_non_iid_data(
+        fake_data, my_class_distr = self.datasource.fake_non_iid_data(
             min_train=model_config['min_train_size'],
             max_train=FederatedClient.MAX_DATASET_SIZE_KEPT,
             data_split=model_config['data_split']
@@ -111,6 +111,7 @@ class FederatedClient(object):
         self.sio.emit('client_ready', {
                 'train_size': self.local_model.x_train.shape[0],
                 'valid_size': self.local_model.x_valid.shape[0],
+                'class_distr': my_class_distr  # for debugging, not needed in practice
             })
 
 
