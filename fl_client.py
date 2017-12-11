@@ -104,6 +104,7 @@ class FederatedClient(object):
         # ready to be dispatched for training
         self.sio.emit('client_ready', {
                 'train_size': self.local_model.x_train.shape[0],
+                'valid_size': self.local_model.x_valid.shape[0],
             })
 
 
