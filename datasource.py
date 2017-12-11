@@ -46,14 +46,15 @@ class Mnist(DataSource):
             test_sample_idx = np.random.choice(total_test_size, test_size,
                     replace=True, p=test_weights)
 
-        self.x_train = x_train[train_sample_idx]
-        self.y_train = y_train[train_sample_idx]
-        self.x_valid = x_train[valid_sample_idx]
-        self.y_valid = y_train[valid_sample_idx]
-        self.x_test = x_test[test_sample_idx]
-        self.y_test = y_test[test_sample_idx]
+        self.x_train, self.y_train = self.post_process(
+                x_train[train_sample_idx], y_train[train_sample_idx])
+        self.x_valid, self.y_valid= self.post_process(
+            x_train[valid_sample_idx], y_train[valid_sample_idx])
+        self.x_test, self.y_test = self.post_process(
+                x_test[test_sample_idx], y_test[test_sample_idx])
 
-        print('train', self.x_train.shape, 'valid', self.x_valid.shape, 'test', self.x_test.shape)
+        print('train', self.x_train.shape, self.y_train.shape,
+                'valid', self.x_valid.shape, 'test', self.x_test.shape)
 
     def gen_sample_weights(self,labels, label_w):
         size_per_class = np.array([np.sum(labels == i) for i in Mnist.CLASSES])
@@ -73,14 +74,15 @@ class Mnist(DataSource):
         return weights
 
     # assuming client server already agreed on data format
-    def post_process(self, xi, yi):
+    def post_process(self, x, y):
         if K.image_data_format() == 'channels_first':
-            xi = xi.reshape(1, xi.shape[0], xi.shape[1])
+            sample_shape = (1, ) + x.shape[1:]
         else:
-            xi = xi.reshape(xi.shape[0], xi.shape[1], 1)
+            sample_shape = x.shape[1:] + (1, )
+        x = x.reshape((x.shape[0],) + sample_shape)
 
-        y_vec = keras.utils.to_categorical(yi, self.classes.shape[0])
-        return xi / 255., y_vec
+        y_vec = keras.utils.to_categorical(y, len(Mnist.CLASSES))
+        return x / 255., y_vec
 
     # split evenly into exact num_workers chunks, with test_reserve globally
     def partitioned_by_rows(self, num_workers, test_reserve=.3):
