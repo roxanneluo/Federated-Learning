@@ -15,7 +15,8 @@ class DataSource(object):
 class Mnist(DataSource):
 
     IID = False
-    MAX_NUM_CLASSES_PER_CLIENT = 5
+    MAX_NUM_CLASSES_PER_CLIENT = 10
+    
     TRAIN_VALID_DATA_RANGE = np.array([500,700])
     CLASSES = range(10)
 

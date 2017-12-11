@@ -135,6 +135,11 @@ class FederatedClient(object):
                 weights = pickle_string_to_obj(req['current_weights'])
 
             self.local_model.set_weights(weights)
+
+            # validate before training
+            if req['run_validation']:
+                valid_loss, valid_accuracy = self.local_model.validate()
+
             my_weights, train_loss, train_accuracy = self.local_model.train_one_round()
             resp = {
                 'round_number': req['round_number'],
@@ -145,7 +150,6 @@ class FederatedClient(object):
                 'train_accuracy': train_accuracy,
             }
             if req['run_validation']:
-                valid_loss, valid_accuracy = self.local_model.validate()
                 resp['valid_loss'] = valid_loss
                 resp['valid_accuracy'] = valid_accuracy
 
