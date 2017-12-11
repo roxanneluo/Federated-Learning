@@ -5,6 +5,8 @@ from keras.models import Sequential
 from keras.layers import Dense, Dropout, Flatten
 from keras.layers import Conv2D, MaxPooling2D
 from keras import backend as K
+from keras.datasets import mnist
+import tensorflow as tf
 
 import msgpack
 import random
@@ -22,10 +24,14 @@ from flask_socketio import SocketIO
 from flask_socketio import *
 # https://flask-socketio.readthedocs.io/en/latest/
 
+from datasource import Mnist
+
 class GlobalModel(object):
     """docstring for GlobalModel"""
     def __init__(self, stats_filename):
-        self.model = self.build_model()
+        self.model, self.graph = self.build_model()
+        #self.model._make_predict_function()
+
         self.current_weights = self.model.get_weights()
         # for convergence check
         self.prev_train_loss = None
@@ -91,9 +97,21 @@ class GlobalModel(object):
             "valid_accuracy": self.valid_accuracies
         }
 
+    def evaluate(self):
+        print('global evaluate')
+        with self.graph.as_default():
+            score = self.model.evaluate(self.x_test, self.y_test, verbose=0)
+        return score
+
+    def set_weights(self, w):
+        with self.graph.as_default():
+            self.model.set_weights(w)
+
 class GlobalModel_MNIST_CNN(GlobalModel):
     def __init__(self, stats_filename):
         super(GlobalModel_MNIST_CNN, self).__init__(stats_filename)
+        (x_train, y_train), (x_test, y_test) = mnist.load_data()
+        self.x_test, self.y_test = Mnist.post_process(x_test, y_test)
 
     def build_model(self):
         # ~5MB worth of parameters
@@ -109,12 +127,11 @@ class GlobalModel_MNIST_CNN(GlobalModel):
         model.add(Dropout(0.5))
         model.add(Dense(10, activation='softmax'))
 
-        """
         model.compile(loss=keras.losses.categorical_crossentropy,
                       optimizer=keras.optimizers.Adadelta(),
                       metrics=['accuracy'])
-                      """
-        return model
+        return model, tf.get_default_graph()
+
 
 
 ######## Flask server with Socket IO ########

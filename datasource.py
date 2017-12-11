@@ -46,11 +46,11 @@ class Mnist(DataSource):
             test_sample_idx = np.random.choice(total_test_size, test_size,
                     replace=True, p=test_weights)
 
-        self.x_train, self.y_train = self.post_process(
+        self.x_train, self.y_train = Mnist.post_process(
                 x_train[train_sample_idx], y_train[train_sample_idx])
-        self.x_valid, self.y_valid= self.post_process(
+        self.x_valid, self.y_valid= Mnist.post_process(
             x_train[valid_sample_idx], y_train[valid_sample_idx])
-        self.x_test, self.y_test = self.post_process(
+        self.x_test, self.y_test = Mnist.post_process(
                 x_test[test_sample_idx], y_test[test_sample_idx])
 
         print('train', self.x_train.shape, self.y_train.shape,
@@ -74,7 +74,7 @@ class Mnist(DataSource):
         return weights
 
     # assuming client server already agreed on data format
-    def post_process(self, x, y):
+    def post_process(x, y):
         if K.image_data_format() == 'channels_first':
             sample_shape = (1, ) + x.shape[1:]
         else:

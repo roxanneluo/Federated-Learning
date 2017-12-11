@@ -67,6 +67,7 @@ class ClientMetadata:
 
 
 class ElasticAveragingServer(FLServer):
+    TEST_STEP = 10
     def __init__(self, global_model, host, port, p, e, stats_filename):
         super(ElasticAveragingServer, self).__init__(global_model, host, port,
                 async_handlers = True, stats_filename = stats_filename)
@@ -78,6 +79,30 @@ class ElasticAveragingServer(FLServer):
         self.client_metadata = ClientMetadata()
         self.weights_fn = '.'.join(stats_filename.split('.')[:-1]) + '.npy'
         print('weights fn', self.weights_fn)
+
+        self.alive = True
+        self.num_updates = -1
+        self.test_model_cond = threading.Condition()
+
+        def test_model():
+            while self.alive:
+                with self.test_model_cond:
+                    print('#update', self.num_updates)
+                    while self.num_updates % ElasticAveragingServer.TEST_STEP !=  0:
+                        self.test_model_cond.wait()
+                with self.model_lock:
+                    self.global_model.set_weights(
+                            self.global_model.current_weights)
+                test_loss, test_acc = self. global_model.evaluate()
+                print('test result', test_loss, test_acc)
+                self.global_model.aggregate_valid_loss_accuracy([test_loss],
+                        [test_acc], [1])
+                if test_acc >=  0.99:
+                    print("converge!!")
+                    self.stop_and_eval()
+
+        threading.Thread(target = test_model).start()
+
 
 
     def init_client_message(self):
@@ -128,6 +153,10 @@ class ElasticAveragingServer(FLServer):
 
         @self.socketio.on('client_send_weights')
         def handle_client_send_weights(data):
+            with self.test_model_cond:
+                self.num_updates += 1
+                self.test_model_cond.notify()
+
             client_id = request.sid
             print_request('client %s _send_weights' % client_id, data)
             train_size_ratio = self.client_metadata.ratio(client_id,'train_size')
@@ -142,7 +171,7 @@ class ElasticAveragingServer(FLServer):
             del result["weights"]
             self.client_metadata.set(client_id, result)
 
-            for prefix in ['train', 'valid']:
+            for prefix in ['train']:#, 'valid']:
                 if '%s_loss' % prefix in result:
                     # FIXME: if I want to plot how weight difference converges,
                     # I'd set loss to be the weighted average of sq_diff
@@ -159,17 +188,6 @@ class ElasticAveragingServer(FLServer):
                     agg_loss, agg_acc = agg_func(losses, accs, sizes)
                     print(prefix + " results:", agg_loss, agg_acc)
 
-                    if prefix == 'valid':
-                        #if self.global_model.prev_train_loss is not None and \
-                        #   fabs(self.global_model.prev_train_loss - agg_loss) / self.global_model.prev_train_loss < 1e-4:
-                        if agg_acc > 0.99:
-                            # converges
-                            print("converges!")
-                            self.stop_and_eval()
-                            return
-                        #self.global_model.prev_train_loss = agg_loss
-
-
     def stop_and_eval(self):
         self.eval_client_updates = []
         with self.model_lock:
@@ -180,6 +198,8 @@ class ElasticAveragingServer(FLServer):
                     'current_weights': obj_to_pickle_string(self.global_model.current_weights),
                     'weights_format': 'pickle'
                 }, room=rid)
+        self.socketio.stop()
+        self.alive = False
 
 
 if __name__ == '__main__':
