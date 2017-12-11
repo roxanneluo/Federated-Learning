@@ -79,7 +79,7 @@ class LocalModel(object):
 # it contributes to the global model by sending its local gradients.
 
 class FederatedClient(object):
-    MAX_DATASET_SIZE_KEPT = 200
+    MAX_DATASET_SIZE_KEPT = 1200
 
     def __init__(self, server_host, server_port, datasource):
         self.local_model = None
@@ -98,7 +98,7 @@ class FederatedClient(object):
         print('on init', model_config)
         print('preparing local data based on server model_config')
         # ([(Xi, Yi)], [], []) = train, test, valid
-        fake_data = self.datasource.fake_non_iid_data(
+        fake_data, my_class_distr = self.datasource.fake_non_iid_data(
             min_train=model_config['min_train_size'],
             max_train=FederatedClient.MAX_DATASET_SIZE_KEPT,
             data_split=model_config['data_split']
@@ -107,6 +107,7 @@ class FederatedClient(object):
         # ready to be dispatched for training
         self.sio.emit('client_ready', {
                 'train_size': self.local_model.x_train.shape[0],
+                'class_distr': my_class_distr  # for debugging, not needed in practice
             })
 
 
