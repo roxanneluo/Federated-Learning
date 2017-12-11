@@ -113,6 +113,7 @@ class ElasticAveragingServer(FLServer):
             print("client wake_up: ", request.sid)
             emit('init', self.init_client_message())
 
+        # data = {'train_size':, 'valid_size':}
         @self.socketio.on('client_ready')
         def handle_client_ready(data):
             client_id = request.sid
@@ -139,6 +140,7 @@ class ElasticAveragingServer(FLServer):
             # update client_metadata
             result = data
             del result["weights"]
+            self.client_metadata.set(client_id, result)
 
             for prefix in ['train', 'valid']:
                 if '%s_loss' % prefix in result:
@@ -151,7 +153,6 @@ class ElasticAveragingServer(FLServer):
                     result["train_accuracy"] = result["train_loss"] /result["valid_loss"] # ratio ||gw-w||/||gw||
                     result["valid_accuracy"] = list_sq_norm(w)
                     """
-                    self.client_metadata.set(client_id, result)
                     losses, accs, sizes = self.client_metadata.get_all(
                             [prefix+suf for suf in ['_loss' , '_accuracy', '_size']])
                     agg_func = getattr(self.global_model, 'aggregate_%s_loss_accuracy' % prefix)
