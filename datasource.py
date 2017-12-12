@@ -39,15 +39,15 @@ class Mnist(DataSource):
             test_sample_idx = np.random.choice(total_test_size, test_size, replace=True)
         else:
             label_w = self.gen_dummy_non_iid_weights()
-            print('label_w', label_w)
+            # print('label_w', label_w)
 
             train_weights = self.gen_sample_weights(y_train, label_w)
             test_weights = self.gen_sample_weights(y_test, label_w)
 
             train_sample_idx = np.random.choice(total_train_size, train_size,
-                    replace=True, p=train_weights)
+                    replace=True, p=train_weights[0:total_train_size])
             valid_sample_idx = np.random.choice(range(total_train_size, total_train_size + total_valid_size), valid_size,
-                    replace=True, p=train_weights)
+                    replace=True, p=train_weights[total_train_size:])
             test_sample_idx = np.random.choice(total_test_size, test_size,
                     replace=True, p=test_weights)
 
