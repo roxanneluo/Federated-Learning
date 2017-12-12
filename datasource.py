@@ -42,12 +42,14 @@ class Mnist(DataSource):
             # print('label_w', label_w)
 
             train_weights = self.gen_sample_weights(y_train, label_w)
+            valid_weights = train_weights[total_train_size:] / np.sum(train_weights[total_train_size:])
+            train_weights = train_weights[0:total_train_size] / np.sum(train_weights[0:total_train_size])
             test_weights = self.gen_sample_weights(y_test, label_w)
 
             train_sample_idx = np.random.choice(total_train_size, train_size,
-                    replace=True, p=train_weights[0:total_train_size])
+                    replace=True, p=train_weights)
             valid_sample_idx = np.random.choice(range(total_train_size, total_train_size + total_valid_size), valid_size,
-                    replace=True, p=train_weights[total_train_size:])
+                    replace=True, p=valid_weights)
             test_sample_idx = np.random.choice(total_test_size, test_size,
                     replace=True, p=test_weights)
 
