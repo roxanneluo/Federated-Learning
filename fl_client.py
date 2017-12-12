@@ -85,12 +85,14 @@ class FederatedClient(object):
     def __init__(self, server_host, server_port, datasource):
         self.local_model = None
         self.datasource = datasource()
+        self.alive = True
 
         self.sio = SocketIO(server_host, server_port, LoggingNamespace)
         self.register_handles()
         #print("sent wakeup")
         self.sio.emit('client_wake_up')
         self.sio.wait()
+
 
 
     ########## Socket Event Handler ##########
@@ -129,6 +131,9 @@ class FederatedClient(object):
             #     'current_weights'
             #     'weights_format'
             #     'run_validation'
+            
+            if not self.alive:
+                return
             print("update requested")
 
             if req['weights_format'] == 'pickle':

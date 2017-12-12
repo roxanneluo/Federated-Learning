@@ -29,9 +29,13 @@ class Mnist(DataSource):
 
         (x_train, y_train), (x_test, y_test) = mnist.load_data()
         total_train_size, total_test_size = x_train.shape[0], x_test.shape[0]
+
+        total_valid_size = int(total_train_size * .3)
+        total_train_size = int(total_train_size * .7)
+
         if Mnist.IID:
             train_sample_idx = np.random.choice(total_train_size, train_size,replace=True)
-            valid_sample_idx = np.random.choice(total_train_size, valid_size, replace=True)
+            valid_sample_idx = np.random.choice(range(total_train_size, total_train_size + total_valid_size), valid_size, replace=True)
             test_sample_idx = np.random.choice(total_test_size, test_size, replace=True)
         else:
             label_w = self.gen_dummy_non_iid_weights()
@@ -42,7 +46,7 @@ class Mnist(DataSource):
 
             train_sample_idx = np.random.choice(total_train_size, train_size,
                     replace=True, p=train_weights)
-            valid_sample_idx = np.random.choice(total_train_size, valid_size,
+            valid_sample_idx = np.random.choice(range(total_train_size, total_train_size + total_valid_size), valid_size,
                     replace=True, p=train_weights)
             test_sample_idx = np.random.choice(total_test_size, test_size,
                     replace=True, p=test_weights)
@@ -112,4 +116,3 @@ if __name__ == "__main__":
     # print(res["test"][1].shape)
     for _ in range(10):
         print(m.gen_dummy_non_iid_weights())
-
