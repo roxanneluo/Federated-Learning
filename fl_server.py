@@ -143,7 +143,7 @@ class FLServer(object):
     MIN_NUM_WORKERS = 10
     MAX_NUM_ROUNDS = 20
     NUM_CLIENTS_CONTACTED_PER_ROUND = 10
-    ROUNDS_BETWEEN_VALIDATIONS = 10
+    ROUNDS_BETWEEN_VALIDATIONS = 1
 
     def __init__(self, global_model, host, port, async_handlers = False, stats_filename = 'stats.txt'):
         self.global_model = global_model(stats_filename)
@@ -181,7 +181,7 @@ class FLServer(object):
         return {
                     'model_json': self.global_model.model.to_json(),
                     'model_id': self.model_id,
-                    'min_train_size': 500,
+                    'min_train_size': 1200,
                     'data_split': (0.6, 0.3, 0.1), # train, test, valid
                     'epoch_per_round': 1,
                     'batch_size': 10
@@ -207,14 +207,7 @@ class FLServer(object):
         @self.socketio.on('client_wake_up')
         def handle_wake_up():
             print("client wake_up: ", request.sid)
-            emit('init', {
-                    'model_json': self.global_model.model.to_json(),
-                    'model_id': self.model_id,
-                    'min_train_size': 1200,
-                    'data_split': (0.6, 0.3, 0.1), # train, test, valid
-                    'epoch_per_round': 1,
-                    'batch_size': 10
-                })
+            emit('init', self.init_client_message())
 
         @self.socketio.on('client_ready')
         def handle_client_ready(data):
@@ -270,16 +263,17 @@ class FLServer(object):
                         print("aggr_valid_loss", aggr_valid_loss)
                         print("aggr_valid_accuracy", aggr_valid_accuracy)
 
-                    if self.global_model.prev_train_loss is not None and \
-                            (self.global_model.prev_train_loss - aggr_train_loss) / self.global_model.prev_train_loss < .01:
-                        # converges
-                        print("converges! starting test phase..")
-                        self.stop_and_eval()
-                        return
+                        if aggr_valid_accuracy > .99:
+                            # converges
+                            print("converges! starting test phase..")
+                            self.current_round = FLServer.MAX_NUM_ROUNDS + 1
+                            self.stop_and_eval()
+                            return
 
                     self.global_model.prev_train_loss = aggr_train_loss
 
                     if self.current_round >= FLServer.MAX_NUM_ROUNDS:
+                        self.current_round = FLServer.MAX_NUM_ROUNDS + 1
                         self.stop_and_eval()
                     else:
                         self.train_next_round()
@@ -312,7 +306,8 @@ class FLServer(object):
         self.current_round_client_updates = []
 
         print("### Round ", self.current_round, "###")
-        client_sids_selected = random.sample(list(self.ready_client_sids), FLServer.NUM_CLIENTS_CONTACTED_PER_ROUND)
+        num_sample = min(FLServer.NUM_CLIENTS_CONTACTED_PER_ROUND, len(list(self.ready_client_sids)))
+        client_sids_selected = random.sample(list(self.ready_client_sids), num_sample)
         print("request updates from", client_sids_selected)
 
         # by default each client cnn is in its own "room"

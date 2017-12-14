@@ -64,6 +64,10 @@ class LocalModel(object):
             score = self.model.evaluate(self.x_train, self.y_train, verbose=0)
             return self.model.get_weights(), score[0], score[1]
 
+    def train_loss_accuracy(self):
+        score = self.model.evaluate(self.x_train, self.y_train, verbose=0)
+        return score
+
     def validate(self):
         print('validate')
         score = self.model.evaluate(self.x_valid, self.y_valid, verbose=0)
@@ -85,12 +89,14 @@ class FederatedClient(object):
     def __init__(self, server_host, server_port, datasource):
         self.local_model = None
         self.datasource = datasource()
+        self.alive = True
 
         self.sio = SocketIO(server_host, server_port, LoggingNamespace)
         self.register_handles()
         #print("sent wakeup")
         self.sio.emit('client_wake_up')
         self.sio.wait()
+
 
 
     ########## Socket Event Handler ##########
@@ -130,13 +136,22 @@ class FederatedClient(object):
             #     'current_weights'
             #     'weights_format'
             #     'run_validation'
+            
+            if not self.alive:
+                return
             print("update requested")
 
             if req['weights_format'] == 'pickle':
                 weights = pickle_string_to_obj(req['current_weights'])
 
             self.local_model.set_weights(weights)
-            my_weights, train_loss, train_accuracy = self.local_model.train_one_round()
+
+            # losses returned are round round behind!!
+            if req['run_validation']:
+                valid_loss, valid_accuracy = self.local_model.validate()
+            train_loss, train_accuracy = self.local_model.train_loss_accuracy()
+
+            my_weights, _, _ = self.local_model.train_one_round()
             resp = {
                 'round_number': req['round_number'],
                 'weights': obj_to_pickle_string(my_weights),
@@ -146,7 +161,6 @@ class FederatedClient(object):
                 'train_accuracy': train_accuracy,
             }
             if req['run_validation']:
-                valid_loss, valid_accuracy = self.local_model.validate()
                 resp['valid_loss'] = valid_loss
                 resp['valid_accuracy'] = valid_accuracy
 
